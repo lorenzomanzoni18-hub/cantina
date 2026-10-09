@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cantina</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<meta name="theme-color" content="#1E2824">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Cantina">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="styles.css">
+</head><body>
+<div class="top"><h1>La mia cantina</h1><button class="gear" data-a="settings" aria-label="Impostazioni e backup">⚙</button></div>
+<div class="tot" id="tot"></div>
+<div id="msg"></div>
+<nav><button data-a="tab" data-t="cantina" aria-pressed="true">Cantina</button><button data-a="tab" data-t="lista" aria-pressed="false">Bottiglie</button><button data-a="new" class="pri">Aggiungi</button></nav>
+<main id="app"></main>
+<dialog id="dlg"></dialog>
+<dialog id="dlg2"></dialog>
+<script src="app.js"></script>
+</body></html>
