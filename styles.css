@@ -87,3 +87,9 @@ label.btn{font-size:inherit;color:var(--ink)}
 .cell.lift .dot{opacity:.3}
 .cell.hot .dot{outline:3px solid #fff;outline-offset:3px}
 .dot.ghost{position:fixed;z-index:50;pointer-events:none;box-shadow:0 8px 20px rgba(0,0,0,.6);transform:scale(1.15);margin:0}
+.azbar{position:sticky;top:0;z-index:5;background:var(--bg,#EAECE8);padding:6px 0 4px}
+.az{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.az button{border:1px solid var(--line);background:var(--sf,#fff);color:var(--ink);border-radius:8px;min-width:30px;height:30px;font-size:13px;padding:0 6px}
+h3.letter{margin:14px 0 2px;font-size:15px;color:var(--wine,#7A1F3D);border-bottom:2px solid var(--line);scroll-margin-top:96px}
+label.chk{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:15px}
+label.chk input{width:20px;height:20px}

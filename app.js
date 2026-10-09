@@ -71,9 +71,9 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '12';
+const APP_VERSION = '13';
 const CFG_KEY = 'cantina.cfg';
-const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5' };
+const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
@@ -369,13 +369,24 @@ function cantina() {
   return mvb + keyBanner() + today() + h + '<div class="legend"><span><i class="lg" style="box-shadow:0 0 0 6px #4C9A6A"></i>Pronta da bere</span><span><i class="lg" style="box-shadow:0 0 0 6px #D9A441"></i>Da aspettare</span><span><i class="lg" style="box-shadow:0 0 0 6px #B85C5C"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
 
+const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 function lista(bs) {
+  const words = nrm(q).split(/\s+/).filter(Boolean);
+  const key = (b) => nrm(b.producer || b.cuvee || '').replace(/^[^a-z0-9]+/, '');
   const f = bs
-    .filter((b) => (name(b) + ' ' + (b.region || '') + ' ' + (b.vintage || '')).toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => (!!a.shelf - !!b.shelf) || name(a).localeCompare(name(b)));
+    .filter((b) => { const h = nrm([name(b), b.region, b.vintage, b.type, posText(b)].join(' ')); return words.every((w) => h.includes(w)); })
+    .sort((a, b) => (key(a) || '~').localeCompare(key(b) || '~', 'it') || (a.vintage || 0) - (b.vintage || 0));
   const st = { 'st-now': ', pronta da bere', 'st-wait': ', da aspettare', 'st-past': ', oltre il picco' };
-  return keyBanner() + `<input id="q" placeholder="Cerca per produttore, cuvée, annata" value="${esc(q)}">` + (f.length
-    ? f.map((b) => `<button class="row" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : ''}<span>${esc(name(b))} ${esc(b.vintage || '')}<small>${esc(posText(b))}${st[status(b)] || ''}</small></span></span><span>${eur(b.value ?? b.price)}</span></button>`).join('')
+  const letter = (b) => { const c = key(b).charAt(0).toUpperCase(); return /[A-Z]/.test(c) ? c : '#'; };
+  const letters = [...new Set(f.map(letter))];
+  const jump = letters.length > 1 ? `<div class="az">${letters.map((l) => `<button data-a="jump" data-l="${l}">${l}</button>`).join('')}</div>` : '';
+  let last = '', rows = '';
+  f.forEach((b) => {
+    const l = letter(b);
+    if (l !== last) { rows += `<h3 class="letter" id="az-${l === '#' ? 'x' : l}">${l}</h3>`; last = l; }
+    rows += `<button class="row" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(b))} ${esc(b.vintage || '')}<small>${esc(posText(b))}${st[status(b)] || ''}</small></span></span><span>${eur(b.value ?? b.price)}</span></button>`;
+  });
+  return keyBanner() + `<div class="azbar"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona" value="${esc(q)}">${jump}</div><p class="info">${f.length} ${f.length === 1 ? 'bottiglia' : 'bottiglie'}${q ? ' trovate' : ' in ordine alfabetico'}</p>` + (f.length ? rows
     : `<p class="empty">Nessuna bottiglia${q ? ' trovata' : ' ancora: tocca Aggiungi'}.</p>`);
 }
 
@@ -604,6 +615,18 @@ async function openBottle(id, pre) {
   };
   const showSrc = () => { $('#esrc').innerHTML = srcLinks.length ? 'Fonti della ricerca: ' + srcLinks.map((l) => `<a class="link" target="_blank" rel="noopener" href="${esc(l.u)}">${esc(l.t)}</a>`).join(' · ') : ''; };
   showSrc();
+  const findLabel = async (quiet) => {
+    if (cur()) return '';
+    if (!quiet) scs('Cerco l\'etichetta online…');
+    const ob = await offByName(g('producer'), g('cuvee'));
+    if (!ob) return ' Etichetta non trovata online: puoi aggiungere una foto tua.';
+    try {
+      photoFull = photo = ob; useFull = false;
+      thumb = await makeLabelThumb(ob, null); labelThumb = true; onlineLabel = true;
+      showPic();
+      return ' Etichetta trovata online.';
+    } catch (_) { return ''; }
+  };
   const enrich = async () => {
     if (busy) { again = true; return; }
     if (!aiReady()) { notice('Manca la chiave dell\'IA', 'Per le informazioni automatiche serve la chiave del servizio di IA. Aprila dalle Impostazioni.', [{ t: 'Apri le impostazioni', pri: true, fn: openSettings }, { t: 'Chiudi' }]); return; }
@@ -614,18 +637,7 @@ async function openBottle(id, pre) {
       const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region') });
       applyInfo(r.j);
       if (r.links.length) { srcLinks = r.links; showSrc(); }
-      let lab = '';
-      if (!cur()) {
-        scs('Cerco l\'etichetta online…');
-        const ob = await offByName(g('producer'), g('cuvee'));
-        if (ob) {
-          try {
-            photoFull = photo = ob; useFull = false;
-            thumb = await makeLabelThumb(ob, null); labelThumb = true; onlineLabel = true;
-            showPic(); lab = ' Etichetta trovata online.';
-          } catch (_) {}
-        } else lab = ' Etichetta non trovata online: puoi aggiungere una foto tua.';
-      }
+      const lab = await findLabel(true);
       scs((r.deep ? 'Fatto, con ricerca online: controlla le fonti in fondo e i dati importanti.' : (r.limited ? 'Limite gratuito della ricerca web raggiunto: ho usato solo le conoscenze dell\'IA, senza fonti e senza aggiornare il valore. Riprova più tardi con "Cerca dati ed etichetta".' : 'Fatto, ma senza ricerca online (non disponibile): sono stime dell\'IA, controllale.')) + lab);
     } catch (e) {
       scs('Ricerca non riuscita: ' + e.message);
@@ -642,8 +654,13 @@ async function openBottle(id, pre) {
   let autoT = null;
   ['producer', 'cuvee', 'vintage'].forEach((k) => $('#f_' + k).addEventListener('change', () => {
     clearTimeout(autoT);
-    autoT = setTimeout(() => {
-      if (!aiReady() || !(g('producer') || g('cuvee'))) return;
+    autoT = setTimeout(async () => {
+      if (!(g('producer') || g('cuvee'))) return;
+      if (!getCfg().autoDeep) {
+        if (k !== 'vintage' && !cur() && !busy) { const m = await findLabel(true); if (m.includes('trovata')) scs('Etichetta trovata online. Per produzione, valore e fonti premi «Cerca dati ed etichetta».'); }
+        return;
+      }
+      if (!aiReady()) return;
       const need = k === 'vintage' ? (!g('drink') || autoVal || !g('value')) : (!g('info') && !g('winfo'));
       if (need && (k === 'vintage' || !cur())) enrich();
     }, 2000);
@@ -689,7 +706,7 @@ async function openBottle(id, pre) {
       ws();
       const poor = j.quality === 'scarsa' ? ' Foto poco chiara (sfocata, buia o tagliata): riscattala, oppure incolla una foto migliore.' : '';
       scs('Etichetta letta.' + (onlineLabel ? ' Etichetta scaricata da internet: se non è quella giusta, rifai la foto.' : ''));
-      if (g('producer') || g('cuvee')) await enrich();
+      if (g('producer') || g('cuvee')) { if (getCfg().autoDeep) await enrich(); else scs($('#scs').textContent + ' Per produzione, valore e fonti premi «Cerca dati ed etichetta».'); }
       scs($('#scs').textContent + poor);
     } catch (err) {
       await setPhoto(file, null);
@@ -832,6 +849,8 @@ function openSettings() {
   <div id="c_gem"><label>Chiave Gemini</label><input id="c_gk" type="password" autocomplete="off" value="${esc(c.geminiKey)}"><label>Modello Gemini</label><input id="c_gm" value="${esc(c.geminiModel)}"></div>
   <div id="c_ant"><label>Chiave Anthropic</label><input id="c_ak" type="password" autocomplete="off" value="${esc(c.anthropicKey)}"><label>Modello Anthropic</label><input id="c_am" value="${esc(c.anthropicModel)}"></div>
   <p class="info">Gemini gratuito: pochi usi al giorno, senza ricerca web con fonti, e Google può usare i dati inviati per migliorare i suoi prodotti. Gemini con fatturazione attiva o Anthropic: nessun limite giornaliero stretto, si paga solo ciò che usi.</p>
+  <label class="chk"><input type="checkbox" id="c_auto" ${c.autoDeep ? 'checked' : ''}> Ricerca approfondita automatica</label>
+  <p class="info">Acceso: dopo ogni scansione e quando scrivi il nome, l'app cerca da sola produzione, valore e fonti (usa più richieste, il limite gratuito finisce prima). Spento: lo fa solo quando premi «Cerca dati ed etichetta». La ricerca dell'etichetta online resta sempre automatica.</p>
   <div class="acts"><button class="btn pri" id="c_save">Salva</button><button class="btn" id="c_test">Prova la connessione</button></div>
   <p class="info" id="c_msg"></p>
   <h3 style="margin:16px 0 4px;font-size:16px">Completa le bottiglie</h3>
@@ -848,7 +867,7 @@ function openSettings() {
   const sync = () => { const a = $('#c_prov').value === 'anthropic'; $('#c_gem').hidden = a; $('#c_ant').hidden = !a; };
   sync();
   $('#c_prov').onchange = sync;
-  const read = () => ({ provider: $('#c_prov').value, geminiKey: $('#c_gk').value.trim(), geminiModel: $('#c_gm').value.trim() || DEF.geminiModel, anthropicKey: $('#c_ak').value.trim(), anthropicModel: $('#c_am').value.trim() || DEF.anthropicModel });
+  const read = () => ({ provider: $('#c_prov').value, geminiKey: $('#c_gk').value.trim(), geminiModel: $('#c_gm').value.trim() || DEF.geminiModel, anthropicKey: $('#c_ak').value.trim(), anthropicModel: $('#c_am').value.trim() || DEF.anthropicModel, autoDeep: $('#c_auto').checked });
   $('#c_save').onclick = () => { setCfg(read()); showState(); render(); $('#c_msg').textContent = 'Impostazioni salvate.'; };
   $('#c_test').onclick = async () => {
     setCfg(read());
@@ -922,6 +941,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'day') { dayOff = Math.max(-7, Math.min(60, t.dataset.o !== undefined ? +t.dataset.o : dayOff + (+t.dataset.d))); render(); }
   else if (a === 'editShelf') openShelf(t.dataset.id);
   else if (a === 'open') openBottle(t.dataset.id);
+  else if (a === 'jump') { const el = document.getElementById('az-' + (t.dataset.l === '#' ? 'x' : t.dataset.l)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   else if (a === 'cancelMove') { moving = null; render(); }
   else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) persistBottle({ ...m, shelf: null, r: 0, c: 0 }); else render(); }
   else if (a === 'slot') {
