@@ -29,6 +29,31 @@ function simplifyProfile(line) {
   return kept.map((q) => [+q[0].toFixed(4), +q[1].toFixed(4)]);
 }
 
+// Sagoma dettagliata, fedele alla foto: tiene tutte le curve (fino a 80 punti).
+function detailProfile(line) {
+  let eps = 0.002, out = rdp(line, eps);
+  while (out.length > 80 && eps < 0.02) { eps *= 1.3; out = rdp(line, eps); }
+  return out.map((q) => [+q[0].toFixed(4), +q[1].toFixed(4)]);
+}
+// Curva morbida (Catmull-Rom) che passa per i punti del ritocco; pts = [[y, hw], ...] ordinati per y.
+function splineThrough(pts, per) {
+  per = per || 10;
+  if (pts.length < 3) return pts.slice();
+  const out = [], P = (i) => pts[Math.max(0, Math.min(pts.length - 1, i))];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    for (let k = 0; k < per; k++) {
+      const t = k / per, t2 = t * t, t3 = t2 * t;
+      const f = (a, b, c, d) => 0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      let y = f(p0[0], p1[0], p2[0], p3[0]), x = f(p0[1], p1[1], p2[1], p3[1]);
+      y = Math.max(p1[0], Math.min(p2[0], y)); x = Math.max(0.001, x);
+      out.push([y, x]);
+    }
+  }
+  out.push(pts[pts.length - 1].slice());
+  return out;
+}
+
 // Profilo di partenza dal disegno standard di una forma.
 function shapeProfile(shape) {
   const g = GSHAPE[shape] || GSHAPE.universale;
@@ -43,7 +68,8 @@ function shapeProfile(shape) {
   const line = pts.map((q) => [(q[0] - top) / H, q[1] / H]);
   const end = (g.b - top) / H;
   line.push([end, 0.012]);
-  return { bowl: simplifyProfile(line.filter((q) => q[0] <= end)), bowlEnd: +end.toFixed(4), base: +((g.base || 21) / H).toFixed(4) };
+  const ln = line.filter((q) => q[0] <= end);
+  return { bowl: detailProfile(ln), keys: simplifyProfile(ln), bowlEnd: +end.toFixed(4), base: +((g.base || 21) / H).toFixed(4) };
 }
 
 // Ricalco automatico dai pixel. src: immagine già ritagliata attorno al calice.
@@ -124,8 +150,12 @@ async function autoTrace(src) {
   for (let yy = bottom - Math.round(Hp * 0.06); yy <= bottom; yy++) base = Math.max(base, at(yy));
   const line = [];
   for (let yy = top; yy <= stem; yy++) line.push([(yy - top) / Hp, at(yy) / Hp]);
+  // media mobile leggera: toglie gli scalini dei pixel ma tiene le pieghe vere
+  const sm = line.map((q, i) => { let t = 0, n = 0; for (let k = -3; k <= 3; k++) { const r = line[i + k]; if (r) { t += r[1]; n++; } } return [q[0], t / n]; });
+  sm[0][1] = line[0][1];
+  line.splice(0, line.length, ...sm);
   line[line.length - 1][1] = Math.min(line[line.length - 1][1], 0.015);
-  const prof = { bowl: simplifyProfile(line), bowlEnd: +((stem - top) / Hp).toFixed(4), base: +(base / Hp).toFixed(4), px: { top, bottom, axis, W, H } };
+  const prof = { bowl: detailProfile(line), keys: simplifyProfile(line), bowlEnd: +((stem - top) / Hp).toFixed(4), base: +(base / Hp).toFixed(4), px: { top, bottom, axis, W, H } };
   const mw = maxHW / Hp;
   if (mw < 0.08 || mw > 0.7 || prof.bowlEnd < 0.18 || prof.bowlEnd > 0.85) throw new Error('sagoma poco chiara');
   return prof;
@@ -140,7 +170,11 @@ function openTracer(profile, img, onDone) {
   const px = start.px && img ? start.px : null;
   let top = px ? px.top * (VW / px.W) : 60, bottom = px ? px.bottom * (VW / px.W) : 560, axis = px ? px.axis * (VW / px.W) : VW / 2;
   const Hp0 = bottom - top;
-  let pts = start.bowl.map((q) => ({ y: top + q[0] * Hp0, x: Math.max(1, q[1] * Hp0) }));
+  const keys0 = Array.isArray(start.keys) && start.keys.length >= 2 ? start.keys : start.bowl.length > 14 ? simplifyProfile(start.bowl) : start.bowl;
+  let pts = keys0.map((q) => ({ y: top + q[0] * Hp0, x: Math.max(1, q[1] * Hp0) }));
+  let dense = start.bowl.map((q) => ({ y: top + q[0] * Hp0, x: Math.max(1, q[1] * Hp0) })); // sagoma fedele alla foto
+  let dirty = false; // diventa vero quando sposti i punti: allora la sagoma segue la curva dei punti
+  const outline = () => (dirty ? splineThrough(pts.map((p) => [p.y, p.x]), 12).map((q) => ({ y: q[0], x: q[1] })) : dense);
   let base = (start.base || 0.17) * Hp0, sel = -1;
   d.innerHTML = `<h2>Ricalca il calice</h2>
   <p class="info">${img ? 'Trascina i punti dorati sul bordo del calice nella foto: il lato sinistro si sposta da solo. Il punto in basso regola il piede.' : 'Trascina i punti dorati per dare la forma al calice: il lato sinistro si sposta da solo.'}</p>
@@ -151,7 +185,8 @@ function openTracer(profile, img, onDone) {
   const svg = $('#tr_svg');
   const draw = () => {
     const stemY = pts[pts.length - 1].y;
-    const Lp = pts.map((p) => `${(axis - p.x).toFixed(1)} ${p.y.toFixed(1)}`), Rp = pts.slice().reverse().map((p) => `${(axis + p.x).toFixed(1)} ${p.y.toFixed(1)}`);
+    const ol = outline();
+    const Lp = ol.map((p) => `${(axis - p.x).toFixed(1)} ${p.y.toFixed(1)}`), Rp = ol.slice().reverse().map((p) => `${(axis + p.x).toFixed(1)} ${p.y.toFixed(1)}`);
     const path = 'M' + Lp.join(' L') + ` L${axis} ${stemY} L` + Rp.join(' L');
     svg.innerHTML = `${img ? `<image href="${img}" x="0" y="0" width="${VW}" height="${VH}" opacity=".55" preserveAspectRatio="xMidYMid slice"/>` : `<rect width="${VW}" height="${VH}" fill="#151211"/>`}
       <line x1="${axis}" y1="0" x2="${axis}" y2="${VH}" stroke="#E3E9EE" stroke-dasharray="4 6" opacity=".35"/>
@@ -182,6 +217,7 @@ function openTracer(profile, img, onDone) {
       p.x = Math.max(1, Math.min(VW / 2, q.x - axis));
       const lo = i > 0 ? pts[i - 1].y + 2 : 4, hi = i < pts.length - 1 ? pts[i + 1].y - 2 : bottom - 20;
       p.y = Math.max(lo, Math.min(hi, q.y));
+      dirty = true;
     }
     draw();
   });
@@ -192,23 +228,24 @@ function openTracer(profile, img, onDone) {
     let gi = 0, gap = 0;
     for (let i = 0; i < pts.length - 1; i++) { const g = pts[i + 1].y - pts[i].y; if (g > gap) { gap = g; gi = i; } }
     pts.splice(gi + 1, 0, { y: (pts[gi].y + pts[gi + 1].y) / 2, x: (pts[gi].x + pts[gi + 1].x) / 2 });
-    sel = gi + 1; draw();
+    sel = gi + 1; dirty = true; draw();
   };
-  $('#tr_del').onclick = () => { if (sel > 0 && sel < pts.length - 1 && pts.length > 3) { pts.splice(sel, 1); sel = -1; draw(); } };
+  $('#tr_del').onclick = () => { if (sel > 0 && sel < pts.length - 1 && pts.length > 3) { pts.splice(sel, 1); sel = -1; dirty = true; draw(); } };
   if ($('#tr_auto')) $('#tr_auto').onclick = async () => {
     $('#tr_m').textContent = 'Ricalco…';
     try {
       const p2 = await autoTrace(img), k = VW / p2.px.W;
       top = p2.px.top * k; bottom = p2.px.bottom * k; axis = p2.px.axis * k;
       const Hh = bottom - top;
-      pts = p2.bowl.map((q) => ({ y: top + q[0] * Hh, x: Math.max(1, q[1] * Hh) })); base = p2.base * Hh; sel = -1;
+      pts = p2.keys.map((q) => ({ y: top + q[0] * Hh, x: Math.max(1, q[1] * Hh) })); dense = p2.bowl.map((q) => ({ y: top + q[0] * Hh, x: Math.max(1, q[1] * Hh) })); dirty = false; base = p2.base * Hh; sel = -1;
       draw(); $('#tr_m').textContent = 'Fatto: ritocca i punti se serve.';
     } catch (e) { $('#tr_m').textContent = 'Non riesco a trovare i bordi in questa foto (' + e.message + '): sistemali a mano, oppure rifai la foto su sfondo scuro e uniforme.'; }
   };
   $('#tr_x').onclick = () => d.close();
   $('#tr_ok').onclick = () => {
-    const Hh = bottom - pts[0].y, t0 = pts[0].y;
-    const prof = { bowl: pts.map((p) => [+((p.y - t0) / Hh).toFixed(4), +(p.x / Hh).toFixed(4)]), bowlEnd: +((pts[pts.length - 1].y - t0) / Hh).toFixed(4), base: +(base / Hh).toFixed(4) };
+    const ol = outline(), t0 = Math.min(ol[0].y, pts[0].y), Hh = bottom - t0;
+    const nz = (arr) => arr.map((p) => [+((p.y - t0) / Hh).toFixed(4), +(p.x / Hh).toFixed(4)]);
+    const prof = { bowl: nz(ol), keys: nz(pts), bowlEnd: +((ol[ol.length - 1].y - t0) / Hh).toFixed(4), base: +(base / Hh).toFixed(4) };
     d.close(); haptic(); onDone(prof);
   };
   d.onclose = null;

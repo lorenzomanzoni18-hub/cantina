@@ -239,12 +239,10 @@ function caliciPage() {
   const mine = GLASSES;
   const owned = new Set(mine.map((g) => g.shape));
   const nW = uniqW(Object.values(S.bottles).filter(inCellar)).length;
-  const missing = (() => { const m = new Map(); uniqW(Object.values(S.bottles).filter(inCellar)).forEach((b) => { const g = bestGlass(b); if (!g.mine || g.rank > 0) m.set(g.ideal, (m.get(g.ideal) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); })();
   const card = (g) => `<button class="gcard" data-a="glass" data-id="${esc(g.id)}">${glassSvg(g.shape, 112, { profile: g.profile })}${g.profile ? '<span class="traced">ricalcato</span>' : ''}${g.brand ? `<span class="brand">${esc(g.brand)}</span>` : ''}<b>${esc(g.model || gName(g))}</b><small>${esc(shapeName(g.shape).replace(/ \(.*\)/, ''))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
   return `<div class="cal-head"><h2 class="ptitle">I miei calici</h2><p class="info">Tocca un calice per sapere a cosa serve e quali vini della tua cantina servirci. ${nW ? 'Ogni vino viene abbinato al calice migliore che hai.' : ''}</p>
   <div class="acts"><label class="btn pri">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="g_photo"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="g_photo"></label><button class="btn" data-a="glasspaste" type="button">Incolla immagine</button><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
-  ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}
-  ${missing.length && mine.length ? `<div class="note"><b>Cosa ti manca</b><br>${missing.slice(0, 3).map(([s, n]) => `${n} ${n === 1 ? 'vino' : 'vini'} della tua cantina starebbero meglio in un calice <b>${esc(shapeName(s).toLowerCase())}</b>`).join('<br>')}.</div>` : ''}`;
+  ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}`;
 }
 function glassDetail(gl, shape) {
   const d = $('#dlg');

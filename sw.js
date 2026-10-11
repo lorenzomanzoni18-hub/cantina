@@ -1,5 +1,5 @@
 // Salva i file dell'app per farla funzionare anche senza connessione.
-const VERSION = 'cantina-v25';
+const VERSION = 'cantina-v26';
 const FILES = ['./', './index.html', './styles.css', './app.js', './extras.js', './backup.js', './tools.js', './calici.js', './more.js', './tracer.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
