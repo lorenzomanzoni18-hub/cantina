@@ -352,3 +352,4 @@ nav button{font-size:10.5px}
 .brand{display:inline-block;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--gold);border:1px solid #5A4A2E;border-radius:999px;padding:2px 9px;margin:2px 0}
 .brand.lg{font-size:12px;margin:0 0 4px}
 .gcard .gcount{z-index:1}
+.ghero .gph.hero{position:static;width:min(240px,62vw);aspect-ratio:3/4;height:auto;border-radius:18px;box-shadow:0 14px 34px rgba(0,0,0,.55)}
