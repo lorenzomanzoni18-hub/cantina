@@ -14,6 +14,7 @@ const SHAPES = [
   ['dessert', 'Vino dolce / passito', 'Piccolo: passiti, Sauternes, vini dolci.'],
   ['fortificati', 'Porto e fortificati', 'Piccolo e stretto: Porto, Sherry, Marsala, Madeira.'],
   ['iso', 'Degustazione (ISO)', 'Calice da degustazione: va bene un po\' per tutto, ma è piccolo.'],
+  ['angolare', 'Angolare (coppa a pareti spezzate)', 'Coppa con pareti a spigoli: più superficie di vino a contatto con l\'aria, si apre in fretta. Versatile per rossi e bianchi.'],
   ['altro', 'Altro', ''],
 ];
 const shapeName = (k) => (SHAPES.find((s) => s[0] === k) || [k, k])[1];
@@ -41,6 +42,11 @@ function wineTraits(b) {
 }
 // Ordine di preferenza delle forme per questa bottiglia (la prima è la migliore).
 function glassPrefs(b) {
+  const l = glassPrefs0(b), i = l.indexOf('universale');
+  if (i >= 0) l.splice(i + 1, 0, 'angolare'); else l.push('angolare');
+  return l;
+}
+function glassPrefs0(b) {
   const w = wineTraits(b);
   if (w.fortified) return ['fortificati', 'dessert', 'iso', 'bianco', 'universale'];
   if (w.sweet || (b.type === 'altro' && !w.champ)) return ['dessert', 'fortificati', 'bianco', 'iso', 'universale'];
@@ -86,13 +92,14 @@ function serviceHtml(b) {
   const g = bestGlass(b);
   let glass;
   if (!g.mine) glass = `Calice ideale: <b>${esc(shapeName(g.ideal))}</b>. <button class="link" data-a="glasses" type="button">Inserisci i tuoi calici</button>`;
-  else if (g.rank === 0) glass = `Usa il tuo <b>${esc(g.mine.name || shapeName(g.mine.shape))}</b>: è la forma ideale per questo vino.`;
-  else if (g.rank < 99) glass = `Tra i tuoi, il migliore è <b>${esc(g.mine.name || shapeName(g.mine.shape))}</b>. L'ideale sarebbe un calice ${esc(shapeName(g.ideal).toLowerCase())}.`;
+  else if (g.rank === 0) glass = `Usa il tuo <b>${esc(gName(g.mine))}</b>: è la forma ideale per questo vino.`;
+  else if (g.rank < 99) glass = `Tra i tuoi, il migliore è <b>${esc(gName(g.mine))}</b>. L'ideale sarebbe un calice ${esc(shapeName(g.ideal).toLowerCase())}.`;
   else glass = `Nessuno dei tuoi calici è molto adatto: l'ideale sarebbe un calice ${esc(shapeName(g.ideal).toLowerCase())}.`;
   return `<div class="svc"><p><span class="svk">Calice</span>${glass}</p><p><span class="svk">Temperatura</span>${serviceTemp(b)}</p><p><span class="svk">Apertura</span>${esc(decantAdvice(b))}</p></div>`;
 }
-const glassLine = (b) => { const g = bestGlass(b); return g.mine ? 'Calice: ' + (g.mine.name || shapeName(g.mine.shape)) + ' · ' + serviceTemp(b) : 'Calice ' + shapeName(g.ideal).toLowerCase() + ' · ' + serviceTemp(b); };
-const glassesForAI = () => (GLASSES.length ? GLASSES.map((g) => (g.name || shapeName(g.shape)) + ' (forma ' + shapeName(g.shape) + (g.qty ? ', ' + g.qty + ' pezzi' : '') + ')').join('; ') : 'non indicati');
+const gName = (g) => g.name || [g.brand, g.model].filter(Boolean).join(' ') || shapeName(g.shape);
+const glassLine = (b) => { const g = bestGlass(b); return g.mine ? 'Calice: ' + (gName(g.mine)) + ' · ' + serviceTemp(b) : 'Calice ' + shapeName(g.ideal).toLowerCase() + ' · ' + serviceTemp(b); };
+const glassesForAI = () => (GLASSES.length ? GLASSES.map((g) => gName(g) + ' (forma ' + shapeName(g.shape) + (g.qty ? ', ' + g.qty + ' pezzi' : '') + ')').join('; ') : 'non indicati');
 
 /* ---- Finestra "I miei calici" ---- */
 function openGlasses() {
@@ -130,6 +137,7 @@ const GSHAPE = {
   dessert: { p: 'M31 42 C27 55 26 67 29 76 C32 84 36 87 40 87 C44 87 48 84 51 76 C54 67 53 55 49 42', b: 87, lv: 70, w: 'dolce' },
   fortificati: { p: 'M34 36 C31 50 30 63 32 74 C34 83 37 87 40 87 C43 87 46 83 48 74 C50 63 49 50 46 36', b: 87, lv: 66, w: 'porto' },
   iso: { p: 'M32 32 C26 48 25 62 28 72 C31 81 36 85 40 85 C44 85 49 81 52 72 C55 62 54 48 48 32', b: 85, lv: 70, w: 'rosso' },
+  angolare: { p: 'M28 10 L23 42 L13 64 C14 82 28 92 40 92 C52 92 66 82 67 64 L57 42 L52 10', b: 92, lv: 68, w: 'rosso' },
   altro: { p: 'M27 12 C20 32 15 50 18 68 C21 84 31 91 40 91 C49 91 59 84 62 68 C65 50 60 32 53 12', b: 91, lv: 70, w: 'rosso' },
 };
 const LIQ = { rosso: '#7A1F35', bianco: '#D9C27A', bolle: '#E6D79E', dolce: '#C98A2E', porto: '#6B2A1A' };
@@ -158,6 +166,7 @@ const GINFO = {
   dessert: { per: 'Piccolo: concentra gli aromi intensi dei vini dolci, che si bevono in porzioni ridotte.', vini: 'Passiti, Sauternes, Tokaji, Vin Santo, Recioto, vendemmie tardive.', serv: '50–70 ml.', cura: 'Lavalo a mano: i vini dolci lasciano residui zuccherini.' },
   fortificati: { per: 'Piccolo e stretto: tiene a bada l\'alcol e concentra gli aromi.', vini: 'Porto, Sherry, Madeira, Marsala, Banyuls.', serv: '50–60 ml.', cura: 'Lavalo a mano.' },
   iso: { per: 'Il calice da degustazione dei sommelier: neutro, uguale per tutti i vini.', vini: 'Ogni vino in degustazione; un po\' piccolo per i rossi importanti.', serv: '40–50 ml in degustazione.', cura: 'Robusto, va in lavastoviglie.' },
+  angolare: { per: 'Le pareti spezzate allargano la superficie del vino e creano un vortice quando lo fai girare: il vino si ossigena in fretta e i profumi escono subito.', vini: 'Rossi giovani o chiusi che hanno bisogno d\'aria, bianchi strutturati; molti lo usano come calice universale.', serv: 'Fino al punto più largo, circa 100–120 ml.', cura: 'Spesso è sottilissimo e soffiato a bocca: lavalo a mano, asciugalo tenendolo dalla coppa, mai torcendo lo stelo.' },
   altro: { per: '', vini: '', serv: '', cura: '' },
 };
 async function ensureGlassIds() { let ch = false; GLASSES.forEach((g) => { if (!g.id) { g.id = gid(); ch = true; } }); if (ch) await saveGlasses(); }
@@ -175,7 +184,7 @@ function caliciPage() {
   const owned = new Set(mine.map((g) => g.shape));
   const nW = uniqW(Object.values(S.bottles).filter(inCellar)).length;
   const missing = (() => { const m = new Map(); uniqW(Object.values(S.bottles).filter(inCellar)).forEach((b) => { const g = bestGlass(b); if (!g.mine || g.rank > 0) m.set(g.ideal, (m.get(g.ideal) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); })();
-  const card = (g) => `<button class="gcard" data-a="glass" data-id="${esc(g.id)}">${g.img ? `<img class="gph" src="${g.img}" alt="">` : ''}${glassSvg(g.shape, 104)}<b>${esc(g.name || shapeName(g.shape))}</b><small>${esc(shapeName(g.shape))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
+  const card = (g) => `<button class="gcard${g.img ? ' hasph' : ''}" data-a="glass" data-id="${esc(g.id)}">${g.img ? `<span class="gpic"><img src="${g.img}" alt=""><span class="gmini">${glassSvg(g.shape, 40)}</span></span>` : glassSvg(g.shape, 104)}${g.brand ? `<span class="brand">${esc(g.brand)}</span>` : ''}<b>${esc(g.model || gName(g))}</b><small>${esc(shapeName(g.shape).replace(/ \(.*\)/, ''))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
   return `<div class="cal-head"><h2 class="ptitle">I miei calici</h2><p class="info">Tocca un calice per sapere a cosa serve e quali vini della tua cantina servirci. ${nW ? 'Ogni vino viene abbinato al calice migliore che hai.' : ''}</p>
   <div class="acts"><label class="btn pri">Riconosci da foto<input type="file" accept="image/*" capture="environment" hidden id="g_photo"></label><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
   ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}
@@ -188,9 +197,9 @@ function glassDetail(gl, shape) {
   const sh = gl ? gl.shape : shape, inf = GINFO[sh] || GINFO.altro, desc = (SHAPES.find((s) => s[0] === sh) || [])[2] || '';
   const list = gl ? winesForGlass(gl) : winesIdealFor(sh).map((b) => ({ b, g: { rank: 0 } }));
   const row = (x) => `<button class="row" data-a="open" data-id="${esc(x.b.id)}"><span style="display:flex;gap:12px">${imgSrc(x.b) ? `<img class="th" src="${imgSrc(x.b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(x.b))} ${esc(x.b.vintage || '')}<small>${x.g.rank === 0 ? 'Forma ideale' : 'Il migliore che hai per questo vino'} · ${serviceTemp(x.b)}${status(x.b) === 'st-now' ? ' · pronta da bere' : status(x.b) === 'st-past' ? ' · da aprire presto' : status(x.b) === 'st-wait' ? ' · da aspettare' : ''}</small></span></span></button>`;
-  d.innerHTML = `<div class="ghero">${gl && gl.img ? `<img class="gph big" src="${gl.img}" alt="Foto del calice">` : ''}${glassSvg(sh, 190)}</div>
-  <p class="eyebrow">${gl ? 'Il tuo calice' : 'Forma di calice'}</p><h2 class="dtitle">${esc(gl ? gl.name || shapeName(sh) : shapeName(sh))}</h2>
-  <div class="chips"><span>${esc(shapeName(sh))}</span>${gl && gl.qty ? `<span>${gl.qty} pezzi</span>` : ''}${gl && gl.conf ? `<span>riconosciuto da foto · certezza ${esc(gl.conf)}</span>` : ''}</div>
+  d.innerHTML = `<div class="ghero">${gl && gl.img ? `<img class="gph big" src="${gl.img}" alt="Foto del tuo calice">` : ''}${glassSvg(sh, gl && gl.img ? 150 : 190)}</div>
+  ${gl && gl.brand ? `<span class="brand lg">${esc(gl.brand)}</span>` : `<p class="eyebrow">${gl ? 'Il tuo calice' : 'Forma di calice'}</p>`}<h2 class="dtitle">${esc(gl ? gl.model || gName(gl) : shapeName(sh))}</h2>
+  <div class="chips"><span>Forma: ${esc(shapeName(sh))}</span>${gl && gl.qty ? `<span>${gl.qty} pezzi</span>` : ''}${gl && gl.conf ? `<span>riconosciuto da foto · certezza ${esc(gl.conf)}</span>` : ''}</div>
   ${desc ? `<p>${esc(desc)}</p>` : ''}
   <div class="svc">${inf.per ? `<p><span class="svk">Perché questa forma</span>${esc(inf.per)}</p>` : ''}${inf.vini ? `<p><span class="svk">Vini ideali</span>${esc(inf.vini)}</p>` : ''}${inf.serv ? `<p><span class="svk">Quanto versare</span>${esc(inf.serv)}</p>` : ''}${inf.cura ? `<p><span class="svk">Cura</span>${esc(inf.cura)}</p>` : ''}${gl && gl.note ? `<p><span class="svk">Note</span>${esc(gl.note)}</p>` : ''}</div>
   <h3 class="sub">${gl ? 'Da servire in questo calice' : 'I tuoi vini ideali per questa forma'} <small class="free">${list.length}</small></h3>
@@ -208,18 +217,36 @@ function glassDetail(gl, shape) {
 function glassEdit(gl, isNew) {
   const d = $('#dlg2');
   const g = { ...gl };
+  if (!g.brand && !g.model && g.name) g.model = g.name; // calici inseriti prima: il nome diventa il modello
   d.innerHTML = `<h2>${isNew ? 'Nuovo calice' : 'Modifica calice'}</h2>
-  <div class="ghero sm">${g.img ? `<img class="gph big" src="${g.img}" alt="">` : ''}<span id="ge_svg">${glassSvg(g.shape, 120)}</span></div>
-  ${g.why ? `<p class="info">${esc(g.why)}</p>` : ''}
-  <label>Nome o modello</label><input id="ge_n" placeholder="Es. Zalto Bordeaux, Riedel Veritas" value="${esc(g.name || '')}">
+  <div class="ghero sm"><span id="ge_ph">${g.img ? `<img class="gph big" src="${g.img}" alt="">` : ''}</span><span id="ge_svg">${glassSvg(g.shape, 120)}</span></div>
+  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.img ? 'Cambia foto' : 'Aggiungi la foto del tuo calice'}<input type="file" accept="image/*" capture="environment" hidden id="ge_f"></label></div>
+  <p class="info" id="ge_w">${g.why ? esc(g.why) : ''}</p>
+  <div class="two"><div><label>Marca</label><input id="ge_b" placeholder="Es. Zalto, Riedel" value="${esc(g.brand || '')}"></div><div><label>Modello</label><input id="ge_m" placeholder="Es. Bordeaux, Veritas" value="${esc(g.model || '')}"></div></div>
   <label>Forma</label><select id="ge_s">${SHAPES.map((s) => `<option value="${s[0]}" ${g.shape === s[0] ? 'selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
   <div class="two"><div><label>Quanti ne hai</label><input id="ge_q" type="number" min="0" inputmode="numeric" value="${g.qty || ''}"></div><div></div></div>
   <label>Note</label><input id="ge_o" placeholder="Es. cristallo soffiato, regalo, solo per le occasioni" value="${esc(g.note || '')}">
   <div class="acts"><button class="btn pri" id="ge_ok">Salva</button><button class="btn" id="ge_x">Annulla</button></div>`;
-  $('#ge_s').onchange = () => { $('#ge_svg').innerHTML = glassSvg($('#ge_s').value, 120); };
+  $('#ge_s').onchange = () => { g.shape = $('#ge_s').value; $('#ge_svg').innerHTML = glassSvg(g.shape, 120); };
+  $('#ge_f').onchange = async (e) => {
+    const file = e.target.files[0]; e.target.value = '';
+    if (!file) return;
+    $('#ge_w').textContent = aiReady() ? 'Ritaglio la foto e riconosco il calice…' : 'Ritaglio la foto…';
+    const r = await analyzeGlassPhoto(file, (t) => { $('#ge_w').textContent = t; });
+    g.img = r.img;
+    $('#ge_ph').innerHTML = g.img ? `<img class="gph big" src="${g.img}" alt="">` : '';
+    if (r.j) {
+      if (r.j.brand && !$('#ge_b').value.trim()) $('#ge_b').value = r.j.brand;
+      if (r.j.model && !$('#ge_m').value.trim()) $('#ge_m').value = r.j.model;
+      if (SHAPES.some((x) => x[0] === r.j.shape) && isNew) { $('#ge_s').value = r.j.shape; $('#ge_s').onchange(); }
+      g.conf = r.j.confidence;
+    }
+    $('#ge_w').textContent = r.msg || '';
+  };
   $('#ge_x').onclick = () => d.close();
   $('#ge_ok').onclick = async () => {
-    const ng = { ...g, name: $('#ge_n').value.trim(), shape: $('#ge_s').value, qty: +$('#ge_q').value || null, note: $('#ge_o').value.trim() };
+    const brand = $('#ge_b').value.trim(), model = $('#ge_m').value.trim();
+    const ng = { ...g, brand, model, name: [brand, model].filter(Boolean).join(' '), shape: $('#ge_s').value, qty: +$('#ge_q').value || null, note: $('#ge_o').value.trim() };
     delete ng.why;
     const i = GLASSES.findIndex((x) => x.id === ng.id);
     if (i >= 0) GLASSES[i] = ng; else GLASSES.push(ng);
@@ -230,25 +257,42 @@ function glassEdit(gl, isNew) {
   d.onclose = null;
   d.showModal();
 }
+// Ritaglio verticale attorno al calice, su fondo scuro, come una foto di catalogo.
+async function cropGlass(file, box) {
+  const im = await loadImg(file), W = im.naturalWidth, H = im.naturalHeight;
+  box = normBox(box) || { left: 0.15, top: 0.05, right: 0.85, bottom: 0.95 };
+  const bw = (box.right - box.left) * W, bh = (box.bottom - box.top) * H, cx = (box.left + box.right) / 2 * W, cy = (box.top + box.bottom) / 2 * H;
+  let h = Math.max(bh * 1.12, bw * 1.12 * 4 / 3), w = h * 3 / 4;
+  const c = document.createElement('canvas'); c.width = 360; c.height = 480;
+  const x = c.getContext('2d'); x.fillStyle = '#121010'; x.fillRect(0, 0, 360, 480);
+  x.drawImage(im, cx - w / 2, cy - h / 2, w, h, 0, 0, 360, 480);
+  return c.toDataURL('image/jpeg', 0.86);
+}
+async function analyzeGlassPhoto(file, onMsg) {
+  if (!aiReady()) { let img = null; try { img = await cropGlass(file, null); } catch (_) {} return { img, j: null, msg: 'Per riconoscere marca e forma in automatico serve la chiave dell\'IA: compila tu i campi.' }; }
+  aiWaitNote = (s) => onMsg && onMsg('Gemini chiede una pausa: riprovo tra ' + s + ' secondi…');
+  try {
+    const j = await aiJson(`Questa è la foto di un calice (bicchiere da vino) di proprietà dell'utente. Rispondi solo con JSON:
+{"brand": string|null, "model": string|null, "shape": chiave, "confidence": "alta"|"media"|"bassa", "why": string, "box": {"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}}
+- "brand" e "model": marca e modello se li riconosci con buona certezza dalla forma o da scritte/incisioni (per esempio Zalto Denk'Art Bordeaux, Riedel Veritas, Gabriel-Glas StandArt, Mark Thomas Double Bend Red, Schott Zwiesel, Spiegelau, Lehmann, Italesse, Rona). Se non sei sicuro usa null: non inventare.
+- "shape": UNA di queste chiavi per la famiglia di forma: ${SHAPES.map((s) => s[0] + ' (' + s[1] + ')').join(', ')}.
+- "why": una frase su cosa ti ha fatto riconoscere forma e modello.
+- "box": il rettangolo che contiene il calice intero (dalla bocca al piede), in frazioni di larghezza e altezza dell'immagine.`, await toB64(file, 1200));
+    let img = null; try { img = await cropGlass(file, j.box); } catch (_) {}
+    return { img, j, msg: (j.why ? 'Riconosciuto: ' + String(j.why).replace(/[.\s]+$/, '') + '. ' : '') + 'Controlla e correggi se serve.' };
+  } catch (err) {
+    let img = null; try { img = await cropGlass(file, null); } catch (_) {}
+    return { img, j: null, msg: 'Riconoscimento non riuscito (' + err.message + '): compila tu i campi.' };
+  } finally { aiWaitNote = null; }
+}
 async function glassFromPhoto(e) {
   const file = e.target.files[0]; e.target.value = '';
   if (!file) return;
   const m = $('#g_msg');
-  let img = null;
-  try { img = await makeLabelThumb(file, null); } catch (_) {}
-  if (!aiReady()) { glassEdit({ id: gid(), shape: 'universale', img, why: 'Per riconoscere il calice in automatico serve la chiave dell\'IA: scegli tu la forma.' }, true); return; }
-  if (m) m.textContent = 'Riconosco il calice…';
-  aiWaitNote = (s) => { if (m) m.textContent = 'Gemini chiede una pausa: riprovo tra ' + s + ' secondi…'; };
-  try {
-    const j = await aiJson(`Questa è la foto di un calice (bicchiere da vino). Riconosci la forma scegliendo UNA di queste chiavi: ${SHAPES.map((s) => s[0] + ' (' + s[1] + ')').join(', ')}.
-Se riconosci con buona certezza la marca e il modello (per esempio Zalto Denk'Art Bordeaux, Riedel Veritas Old World Pinot Noir, Gabriel-Glas StandArt, Schott Zwiesel, Spiegelau, Riedel Performance), scrivili; altrimenti dai un nome descrittivo breve in italiano (es. «Calice da Borgogna in cristallo»). Non inventare il marchio se non è leggibile o inconfondibile.
-Rispondi solo con JSON: {"shape": chiave, "name": string, "confidence": "alta"|"media"|"bassa", "why": "una frase su cosa ti ha fatto scegliere la forma"}`, await toB64(file, 1200));
-    const shape = SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale';
-    if (m) m.textContent = '';
-    glassEdit({ id: gid(), shape, name: typeof j.name === 'string' ? j.name : '', img, conf: j.confidence, why: (j.why ? 'Riconosciuto: ' + j.why + ' ' : '') + 'Controlla e correggi se serve.' }, true);
-  } catch (err) {
-    if (m) m.textContent = 'Riconoscimento non riuscito (' + err.message + '): scegli tu la forma.';
-    glassEdit({ id: gid(), shape: 'universale', img }, true);
-  } finally { aiWaitNote = null; }
+  if (m) m.textContent = aiReady() ? 'Riconosco il calice…' : '';
+  const r = await analyzeGlassPhoto(file, (t) => { if (m) m.textContent = t; });
+  if (m) m.textContent = '';
+  const j = r.j || {};
+  glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', img: r.img, conf: j.confidence, why: r.msg }, true);
 }
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'g_photo') glassFromPhoto(e); });
