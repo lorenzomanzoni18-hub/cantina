@@ -255,3 +255,25 @@ h3.letter{color:var(--gold);border-bottom-color:var(--line)}
 .pic{background:#0D0B0A}
 .empty{color:var(--mute)}
 .dot .vin{white-space:nowrap}
+
+/* --- v17: casse, stati, liste, degustazioni --- */
+.seg4 button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:7px 2px;font-size:13px;min-width:0}
+.seg4 small{font-size:11px;color:var(--mute)}
+.qty{color:var(--gold);font-weight:700;font-size:13px}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.tags i{font-style:normal;font-size:11px;padding:1px 8px;border-radius:999px;background:var(--sf2);border:1px solid var(--line);color:var(--gold)}
+.tagpick{display:flex;flex-wrap:wrap;gap:6px;margin:-6px 0 12px}
+.tagpick .link{font-size:12px;padding:4px 10px}
+h3.sub{font-family:"Cormorant Garamond",Georgia,serif;font-size:22px;margin:18px 0 6px}
+.tasting{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:0 0 8px;background:var(--sf2)}
+.tasting p{margin:6px 0 0;font-size:14px}.tasting small{color:var(--mute)}
+.stars{color:var(--gold);letter-spacing:1px}
+.rate{display:flex;gap:4px;margin:4px 0 12px}
+.rate button{width:44px;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--sf2);color:var(--gold);font-size:22px;line-height:1}
+.note.place{border-color:var(--gold)}
+.cpick{max-height:44vh;overflow:auto;border:1px solid var(--line);border-radius:12px;padding:4px 12px 10px;margin-bottom:10px}
+.cpick label.chk{margin-top:8px;font-size:14px}
+.qa{margin:12px 0 16px}
+.qa .q{margin:0 0 6px;padding:10px 12px;background:var(--sf2);border-radius:14px 14px 4px 14px;margin-left:15%;font-weight:600}
+.qa .a{padding:12px 14px;background:var(--sf);border:1px solid var(--line);border-radius:14px 14px 14px 4px;margin-right:6%;line-height:1.5;margin-bottom:6px}
+.seg button{font-size:14px}

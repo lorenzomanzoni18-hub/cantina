@@ -142,9 +142,26 @@ async function cloudRestore(onStep) {
   return j.bottles.length;
 }
 
+/* ---- Valore della cantina mese per mese ---- */
+let HIST = {};
+async function recordHist() {
+  HIST = (await dbGet('kv', 'hist')) || {};
+  if (!Object.keys(HIST).length) { // prima volta: ricostruisco dai mesi delle copie sul telefono
+    for (const k of await snapKeys()) {
+      if (!/^snap:\d{4}-\d{2}$/.test(k)) continue;
+      const sn = await dbGet('kv', k), bs = (sn.bottles || []).filter((b) => !b.drunk && !b.pending && !b.wish);
+      HIST[k.slice(5)] = { v: bs.reduce((t, b) => t + (b.value ?? b.price ?? 0), 0), s: bs.reduce((t, b) => t + (b.price || 0), 0), n: bs.length };
+    }
+  }
+  const bs = Object.values(S.bottles).filter(inCellar);
+  if (bs.length) HIST[new Date().toISOString().slice(0, 7)] = { v: bs.reduce((t, b) => t + (b.value ?? b.price ?? 0), 0), s: bs.reduce((t, b) => t + (b.price || 0), 0), n: bs.length };
+  await dbPut('kv', HIST, 'hist');
+}
+
 /* ---- Automatico, all'apertura dell'app ---- */
 async function autoBackup() {
   try { await localSnapshot(false); } catch (_) {}
+  try { await recordHist(); } catch (_) {}
   if (!cloudOn() || !navigator.onLine) return;
   try {
     const last = (await dbGet('kv', 'ghLast')) || 0;
@@ -209,7 +226,7 @@ function bindBackupSection() {
     const keys = await snapKeys();
     if (!keys.length) { m('Non c\'è ancora nessuna copia sul telefono: la prima viene fatta in automatico.'); return; }
     const rows = [];
-    for (const k of keys) { const s = await dbGet('kv', k); rows.push({ k, t: s.exported, n: (s.bottles || []).filter((b) => !b.drunk).length }); }
+    for (const k of keys) { const s = await dbGet('kv', k); rows.push({ k, t: s.exported, n: (s.bottles || []).filter((b) => inCellar(b)).length }); }
     const d = $('#dlg');
     d.innerHTML = `<h2>Copie sul telefono</h2><p class="info">Ripristinare una copia riporta bottiglie e scaffali com'erano quel giorno. Prima di farlo salvo una copia della situazione attuale, così puoi tornare indietro.</p>` +
       rows.map((r) => `<button class="row" data-k="${esc(r.k)}"><span>${esc(fmtWhen(r.t))}<small>${r.n} bottiglie in cantina</small></span><span>›</span></button>`).join('') +
