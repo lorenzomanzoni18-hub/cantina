@@ -154,10 +154,10 @@ function openTracer(profile, img, onDone) {
     const Lp = pts.map((p) => `${(axis - p.x).toFixed(1)} ${p.y.toFixed(1)}`), Rp = pts.slice().reverse().map((p) => `${(axis + p.x).toFixed(1)} ${p.y.toFixed(1)}`);
     const path = 'M' + Lp.join(' L') + ` L${axis} ${stemY} L` + Rp.join(' L');
     svg.innerHTML = `${img ? `<image href="${img}" x="0" y="0" width="${VW}" height="${VH}" opacity=".55" preserveAspectRatio="xMidYMid slice"/>` : `<rect width="${VW}" height="${VH}" fill="#151211"/>`}
-      <line x1="${axis}" y1="0" x2="${axis}" y2="${VH}" stroke="var(--gold)" stroke-dasharray="4 6" opacity=".35"/>
-      <path d="${path}" fill="rgba(212,175,106,.10)" stroke="var(--gold)" stroke-width="3" stroke-linejoin="round"/>
-      <line x1="${axis}" y1="${stemY}" x2="${axis}" y2="${bottom}" stroke="var(--gold)" stroke-width="3"/>
-      <ellipse cx="${axis}" cy="${bottom}" rx="${base}" ry="7" fill="none" stroke="var(--gold)" stroke-width="3"/>
+      <line x1="${axis}" y1="0" x2="${axis}" y2="${VH}" stroke="#E3E9EE" stroke-dasharray="4 6" opacity=".35"/>
+      <path d="${path}" fill="rgba(255,255,255,.08)" stroke="#F4F7FA" stroke-width="3" stroke-linejoin="round"/>
+      <line x1="${axis}" y1="${stemY}" x2="${axis}" y2="${bottom}" stroke="#E3E9EE" stroke-width="3"/>
+      <ellipse cx="${axis}" cy="${bottom}" rx="${base}" ry="7" fill="none" stroke="#E3E9EE" stroke-width="3"/>
       ${pts.map((p, i) => `<g class="h${i === sel ? ' sel' : ''}" data-i="${i}"><circle cx="${axis + p.x}" cy="${p.y}" r="22" fill="transparent"/><circle cx="${axis + p.x}" cy="${p.y}" r="${i === sel ? 10 : 8}" fill="var(--gold)" stroke="#121010" stroke-width="2.5"/></g>`).join('')}
       <g class="h" data-i="foot"><circle cx="${axis + base}" cy="${bottom}" r="22" fill="transparent"/><rect x="${axis + base - 8}" y="${bottom - 8}" width="16" height="16" rx="3" fill="var(--gold)" stroke="#121010" stroke-width="2.5"/></g>
       <g class="h" data-i="axis"><circle cx="${axis}" cy="${bottom + 22}" r="20" fill="transparent"/><path d="M${axis - 12} ${bottom + 22} h24 M${axis - 12} ${bottom + 22} l6 -5 M${axis - 12} ${bottom + 22} l6 5 M${axis + 12} ${bottom + 22} l-6 -5 M${axis + 12} ${bottom + 22} l-6 5" stroke="var(--gold)" stroke-width="2.5" fill="none"/></g>`;

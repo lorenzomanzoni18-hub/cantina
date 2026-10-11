@@ -340,7 +340,7 @@ nav button{font-size:10.5px}
 .gcount{position:absolute;top:8px;right:8px;font-size:11px;font-weight:700;color:#121010;background:var(--gold);border-radius:999px;padding:1px 8px}
 .gph{position:absolute;top:8px;left:8px;width:34px;height:34px;border-radius:10px;object-fit:cover;border:1px solid var(--line)}
 .gsvg{display:block;overflow:visible}
-.ghero{display:flex;align-items:flex-end;justify-content:center;gap:16px;padding:8px 0 14px;background:radial-gradient(ellipse at 50% 70%,rgba(212,175,106,.12),transparent 65%)}
+.ghero{display:flex;align-items:flex-end;justify-content:center;gap:16px;padding:8px 0 14px;background:radial-gradient(ellipse at 50% 60%,rgba(220,232,242,.08),transparent 65%)}
 .ghero .gph.big{position:static;width:110px;height:150px;border-radius:14px}
 .ghero.sm .gph.big{width:80px;height:110px}
 /* calici: foto del proprio calice e marca */
@@ -363,3 +363,6 @@ nav button{font-size:10.5px}
 .trbox svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
 .trbox .h{cursor:grab}
 #dlg3{z-index:30}
+
+/* calici in vetro */
+.gcard .gsvg{filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}

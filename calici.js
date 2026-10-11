@@ -170,16 +170,42 @@ function profileShape(pr, shape) {
     return { p, b: +yb, lv: Math.max(top + 4, lv), w, base: Math.max(10, Math.min(30, (+pr.base || 0.17) * k)) };
   } catch (_) { return null; }
 }
+// Disegno in stile vetro: coppa trasparente con riflessi, senza vino. Usa la sagoma ricalcata se c'è,
+// altrimenti quella della forma standard.
+const SPC = {};
+function glassGeom(pr) {
+  const pts = (pr.bowl || []).map((q) => [+q[0], +q[1]]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])).sort((a, b) => a[0] - b[0]);
+  if (pts.length < 2) return null;
+  const end = Math.max(pts[pts.length - 1][0], +pr.bowlEnd || 0);
+  const maxHW = Math.max(...pts.map((q) => q[1]), +pr.base || 0.1, 0.05);
+  const k = Math.min(126, 36 / maxHW), top = 133 - k;
+  return { pts, end, k, top, X: (hw, side) => 40 + side * hw * k, Y: (y) => top + y * k, base: Math.max(9, Math.min(32, (+pr.base || 0.17) * k)) };
+}
 function glassSvg(shape, h, opts) {
-  const traced = opts && opts.profile ? profileShape(opts.profile, shape) : null;
-  const g = traced || GSHAPE[shape] || GSHAPE.universale, id = 'gc' + (++gsvgN);
-  const liq = (opts && opts.liq) || LIQ[g.w], tk = g.p.match(/-?\d+(?:\.\d+)?/g);
-  const bubbles = g.w === 'bolle' && !traced ? [[38, g.b - 6], [42, g.b - 16], [39, g.b - 27], [41, g.lv + 8]].filter((p) => p[1] > g.lv + 2).map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="1.4" fill="#FFF6D8" opacity=".85"/>`).join('') : '';
-  return `<svg class="gsvg" viewBox="0 0 80 140" height="${h}" role="img" aria-label="Calice ${esc(shapeName(shape))}"><defs><clipPath id="${id}"><path d="${g.p} Z"/></clipPath></defs>
-  <rect x="0" y="${g.lv}" width="80" height="${140 - g.lv}" fill="${liq}" clip-path="url(#${id})"/>${bubbles}
-  <path d="${g.p}" fill="rgba(255,255,255,.04)" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M${tk[0]} ${tk[1]} L${tk[tk.length - 2]} ${tk[tk.length - 1]}" fill="none" stroke="var(--gold)" stroke-width="1.2" opacity=".6"/>
-  <path d="M40 ${g.b} L40 128" stroke="var(--gold)" stroke-width="2"/><ellipse cx="40" cy="130" rx="${g.base || 21}" ry="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/></svg>`;
+  let pr = opts && opts.profile && Array.isArray(opts.profile.bowl) ? opts.profile : null;
+  if (!pr) { if (!SPC[shape]) { try { SPC[shape] = shapeProfile(shape); } catch (_) {} } pr = SPC[shape]; }
+  const G = pr && glassGeom(pr), id = 'gv' + (++gsvgN);
+  if (!G) return '';
+  const f = (n) => n.toFixed(1);
+  const L = G.pts.map((q) => f(G.X(q[1], -1)) + ' ' + f(G.Y(q[0]))), R = G.pts.slice().reverse().map((q) => f(G.X(q[1], 1)) + ' ' + f(G.Y(q[0])));
+  const yb = G.Y(G.end), foot = 131;
+  const bowl = 'M' + L.join(' L') + ` L40 ${f(yb)} L` + R.join(' L') + ' Z';
+  // riflesso principale: segue il lato sinistro, un po' all'interno
+  const hl = G.pts.filter((q) => q[0] >= G.end * 0.1 && q[0] <= G.end * 0.72);
+  const hlPath = hl.length >= 2 ? 'M' + hl.map((q) => f(G.X(q[1] * 0.74, -1)) + ' ' + f(G.Y(q[0]))).join(' L') : '';
+  const hr = G.pts.filter((q) => q[0] >= G.end * 0.3 && q[0] <= G.end * 0.62);
+  const hrPath = hr.length >= 2 ? 'M' + hr.map((q) => f(G.X(q[1] * 0.8, 1)) + ' ' + f(G.Y(q[0]))).join(' L') : '';
+  const rimW = G.pts[0][1] * G.k;
+  return `<svg class="gsvg" viewBox="0 0 80 140" height="${h}" role="img" aria-label="Calice ${esc(shapeName(shape))}"><defs>
+    <linearGradient id="${id}f" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#fff" stop-opacity=".16"/><stop offset=".35" stop-color="#fff" stop-opacity=".04"/><stop offset=".7" stop-color="#fff" stop-opacity=".03"/><stop offset="1" stop-color="#fff" stop-opacity=".12"/></linearGradient>
+    <linearGradient id="${id}s" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#F4F7FA" stop-opacity=".95"/><stop offset="1" stop-color="#C9D2DA" stop-opacity=".7"/></linearGradient></defs>
+  <path d="${bowl}" fill="url(#${id}f)" stroke="url(#${id}s)" stroke-width="1.3" stroke-linejoin="round"/>
+  <ellipse cx="40" cy="${f(G.top)}" rx="${f(rimW)}" ry="${f(Math.max(0.8, rimW * 0.09))}" fill="none" stroke="#F4F7FA" stroke-opacity=".75" stroke-width=".9"/>
+  ${hlPath ? `<path d="${hlPath}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>` : ''}
+  ${hrPath ? `<path d="${hrPath}" fill="none" stroke="#fff" stroke-opacity=".22" stroke-width="1" stroke-linecap="round"/>` : ''}
+  <path d="M39.3 ${f(yb)} L39.3 ${foot - 1} M40.7 ${f(yb)} L40.7 ${foot - 1}" stroke="#E3E9EE" stroke-opacity=".7" stroke-width=".8"/>
+  <ellipse cx="40" cy="${foot}" rx="${f(G.base)}" ry="3.2" fill="#fff" fill-opacity=".06" stroke="#E3E9EE" stroke-opacity=".75" stroke-width="1"/>
+  <ellipse cx="${f(40 - G.base * 0.35)}" cy="${foot - 0.6}" rx="${f(G.base * 0.3)}" ry=".8" fill="#fff" fill-opacity=".45"/></svg>`;
 }
 // Informazioni in più per ogni forma
 const GINFO = {
@@ -218,9 +244,7 @@ function caliciPage() {
   return `<div class="cal-head"><h2 class="ptitle">I miei calici</h2><p class="info">Tocca un calice per sapere a cosa serve e quali vini della tua cantina servirci. ${nW ? 'Ogni vino viene abbinato al calice migliore che hai.' : ''}</p>
   <div class="acts"><label class="btn pri">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="g_photo"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="g_photo"></label><button class="btn" data-a="glasspaste" type="button">Incolla immagine</button><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
   ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}
-  ${missing.length && mine.length ? `<div class="note"><b>Cosa ti manca</b><br>${missing.slice(0, 3).map(([s, n]) => `${n} ${n === 1 ? 'vino' : 'vini'} della tua cantina starebbero meglio in un calice <b>${esc(shapeName(s).toLowerCase())}</b>`).join('<br>')}.</div>` : ''}
-  <h3 class="letter">Tutte le forme</h3><p class="info">Guida rapida: tocca una forma per scoprire a cosa serve.</p>
-  <div class="ggrid small">${SHAPES.filter((s) => s[0] !== 'altro').map((s) => `<button class="gcard${owned.has(s[0]) ? ' own' : ''}" data-a="gshape" data-s="${s[0]}">${glassSvg(s[0], 76)}<b>${esc(s[1])}</b>${owned.has(s[0]) ? '<small>ce l\'hai</small>' : ''}</button>`).join('')}</div>`;
+  ${missing.length && mine.length ? `<div class="note"><b>Cosa ti manca</b><br>${missing.slice(0, 3).map(([s, n]) => `${n} ${n === 1 ? 'vino' : 'vini'} della tua cantina starebbero meglio in un calice <b>${esc(shapeName(s).toLowerCase())}</b>`).join('<br>')}.</div>` : ''}`;
 }
 function glassDetail(gl, shape) {
   const d = $('#dlg');
