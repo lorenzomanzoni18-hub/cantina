@@ -353,3 +353,8 @@ nav button{font-size:10.5px}
 .brand.lg{font-size:12px;margin:0 0 4px}
 .gcard .gcount{z-index:1}
 .ghero .gph.hero{position:static;width:min(240px,62vw);aspect-ratio:3/4;height:auto;border-radius:18px;box-shadow:0 14px 34px rgba(0,0,0,.55)}
+.traced{font-size:10px;color:var(--mute);letter-spacing:.06em;text-transform:uppercase;margin-top:-2px}
+.research{background:var(--sf2);border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin:6px 0 10px}
+.research p{margin:4px 0;font-size:14px;line-height:1.45}
+.research .svk{margin-bottom:4px}
+.brand{white-space:nowrap}.brand.lg{display:table}

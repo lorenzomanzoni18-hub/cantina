@@ -81,12 +81,22 @@ function decantAdvice(b) {
   return 'Aprila mezz\'ora prima; non serve decantarla.';
 }
 // Il calice migliore tra quelli che hai (null se non hai calici inseriti).
+// Quanto un calice è adatto a un vino: 0 perfetto, 1-2 buono, oltre poco adatto.
+// Se la ricerca sul modello dice per quali tipi di vino è pensato, gli altri tipi vengono penalizzati.
+function glassFit(b, gl, prefs) {
+  prefs = prefs || glassPrefs(b);
+  let r = prefs.indexOf(gl.shape); if (r < 0) r = 99;
+  const ty = gl.research && Array.isArray(gl.research.types) ? gl.research.types : [];
+  if (ty.length && !ty.includes(b.type)) r += 3;
+  return r;
+}
 function bestGlass(b) {
   const prefs = glassPrefs(b);
   const owned = GLASSES.filter((g) => g.shape);
   if (!owned.length) return { ideal: prefs[0], mine: null, rank: -1 };
-  for (let i = 0; i < prefs.length; i++) { const g = owned.find((x) => x.shape === prefs[i]); if (g) return { ideal: prefs[0], mine: g, rank: i }; }
-  return { ideal: prefs[0], mine: owned[0], rank: 99 };
+  let best = null, br = 1e9;
+  owned.forEach((g) => { const r = glassFit(b, g, prefs); if (r < br) { br = r; best = g; } });
+  return { ideal: prefs[0], mine: best, rank: br > 6 ? 99 : br };
 }
 function serviceHtml(b) {
   const g = bestGlass(b);
@@ -142,15 +152,34 @@ const GSHAPE = {
 };
 const LIQ = { rosso: '#7A1F35', bianco: '#D9C27A', bolle: '#E6D79E', dolce: '#C98A2E', porto: '#6B2A1A' };
 let gsvgN = 0;
+// Sagoma ricalcata dalla foto del calice: profilo di metà calice, specchiato.
+function profileShape(pr, shape) {
+  try {
+    const pts = (pr.bowl || []).map((q) => [Math.max(0, Math.min(1, +q[0])), Math.max(0, Math.min(1, +q[1]))]).filter((q) => Number.isFinite(q[0]) && Number.isFinite(q[1])).sort((a, b) => a[0] - b[0]);
+    if (pts.length < 3) return null;
+    const end = Math.max(pts[pts.length - 1][0], Math.min(0.95, +pr.bowlEnd || pts[pts.length - 1][0]));
+    const maxHW = Math.max(...pts.map((q) => q[1]), +pr.base || 0.1, 0.05);
+    const k = Math.min(124, 36 / maxHW), top = 130 - k;
+    const P = (y, hw, side) => [(40 + side * hw * k).toFixed(1), (top + y * k).toFixed(1)];
+    const L = pts.map((q) => P(q[0], q[1], -1)), R = pts.slice().reverse().map((q) => P(q[0], q[1], 1));
+    const yb = (top + end * k).toFixed(1);
+    const p = 'M' + L.map((q) => q.join(' ')).join(' L') + ' L40 ' + yb + ' L' + R.map((q) => q.join(' ')).join(' L');
+    const widest = pts.reduce((a, q) => (q[1] > a[1] ? q : a), pts[0]);
+    const w = (GSHAPE[shape] || GSHAPE.universale).w;
+    const lv = w === 'bolle' ? top + (pts[0][0] + (end - pts[0][0]) * 0.3) * k : top + widest[0] * k;
+    return { p, b: +yb, lv: Math.max(top + 4, lv), w, base: Math.max(10, Math.min(30, (+pr.base || 0.17) * k)) };
+  } catch (_) { return null; }
+}
 function glassSvg(shape, h, opts) {
-  const g = GSHAPE[shape] || GSHAPE.universale, id = 'gc' + (++gsvgN);
-  const liq = (opts && opts.liq) || LIQ[g.w], tk = g.p.split(' ');
-  const bubbles = g.w === 'bolle' ? [[38, g.b - 6], [42, g.b - 16], [39, g.b - 27], [41, g.lv + 8]].filter((p) => p[1] > g.lv + 2).map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="1.4" fill="#FFF6D8" opacity=".85"/>`).join('') : '';
+  const traced = opts && opts.profile ? profileShape(opts.profile, shape) : null;
+  const g = traced || GSHAPE[shape] || GSHAPE.universale, id = 'gc' + (++gsvgN);
+  const liq = (opts && opts.liq) || LIQ[g.w], tk = g.p.match(/-?\d+(?:\.\d+)?/g);
+  const bubbles = g.w === 'bolle' && !traced ? [[38, g.b - 6], [42, g.b - 16], [39, g.b - 27], [41, g.lv + 8]].filter((p) => p[1] > g.lv + 2).map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="1.4" fill="#FFF6D8" opacity=".85"/>`).join('') : '';
   return `<svg class="gsvg" viewBox="0 0 80 140" height="${h}" role="img" aria-label="Calice ${esc(shapeName(shape))}"><defs><clipPath id="${id}"><path d="${g.p} Z"/></clipPath></defs>
   <rect x="0" y="${g.lv}" width="80" height="${140 - g.lv}" fill="${liq}" clip-path="url(#${id})"/>${bubbles}
   <path d="${g.p}" fill="rgba(255,255,255,.04)" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M${tk[0].slice(1)} ${tk[1]} L${tk[tk.length - 2]} ${tk[tk.length - 1]}" fill="none" stroke="var(--gold)" stroke-width="1.2" opacity=".6"/>
-  <path d="M40 ${g.b} L40 128" stroke="var(--gold)" stroke-width="2"/><ellipse cx="40" cy="130" rx="21" ry="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/></svg>`;
+  <path d="M${tk[0]} ${tk[1]} L${tk[tk.length - 2]} ${tk[tk.length - 1]}" fill="none" stroke="var(--gold)" stroke-width="1.2" opacity=".6"/>
+  <path d="M40 ${g.b} L40 128" stroke="var(--gold)" stroke-width="2"/><ellipse cx="40" cy="130" rx="${g.base || 21}" ry="4.5" fill="none" stroke="var(--gold)" stroke-width="2"/></svg>`;
 }
 // Informazioni in più per ogni forma
 const GINFO = {
@@ -171,10 +200,11 @@ const GINFO = {
 };
 async function ensureGlassIds() { let ch = false; GLASSES.forEach((g) => { if (!g.id) { g.id = gid(); ch = true; } }); if (ch) await saveGlasses(); }
 // Vini della cantina per cui questo calice è il migliore tra quelli che hai
+// Solo i vini per cui questo è il calice migliore che hai E che ci stanno davvero bene.
 function winesForGlass(gl) {
   const wines = uniqW(Object.values(S.bottles).filter(inCellar));
   const ord = { 'st-now': 0, '': 1, 'st-past': 0, 'st-wait': 2 };
-  return wines.map((b) => ({ b, g: bestGlass(b) })).filter((x) => x.g.mine && x.g.mine.id === gl.id)
+  return wines.map((b) => ({ b, g: bestGlass(b) })).filter((x) => x.g.mine && x.g.mine.id === gl.id && x.g.rank <= 2)
     .sort((x, y) => x.g.rank - y.g.rank || ord[status(x.b)] - ord[status(y.b)] || name(x.b).localeCompare(name(y.b), 'it'));
 }
 function winesIdealFor(shape) { return uniqW(Object.values(S.bottles).filter(inCellar)).filter((b) => glassPrefs(b)[0] === shape); }
@@ -184,7 +214,7 @@ function caliciPage() {
   const owned = new Set(mine.map((g) => g.shape));
   const nW = uniqW(Object.values(S.bottles).filter(inCellar)).length;
   const missing = (() => { const m = new Map(); uniqW(Object.values(S.bottles).filter(inCellar)).forEach((b) => { const g = bestGlass(b); if (!g.mine || g.rank > 0) m.set(g.ideal, (m.get(g.ideal) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); })();
-  const card = (g) => `<button class="gcard${g.img ? ' hasph' : ''}" data-a="glass" data-id="${esc(g.id)}">${g.img ? `<span class="gpic"><img src="${g.img}" alt=""></span>` : glassSvg(g.shape, 104)}${g.brand ? `<span class="brand">${esc(g.brand)}</span>` : ''}<b>${esc(g.model || gName(g))}</b><small>${esc(shapeName(g.shape).replace(/ \(.*\)/, ''))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
+  const card = (g) => `<button class="gcard" data-a="glass" data-id="${esc(g.id)}">${glassSvg(g.shape, 112, { profile: g.profile })}${g.profile ? '<span class="traced">ricalcato</span>' : ''}${g.brand ? `<span class="brand">${esc(g.brand)}</span>` : ''}<b>${esc(g.model || gName(g))}</b><small>${esc(shapeName(g.shape).replace(/ \(.*\)/, ''))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
   return `<div class="cal-head"><h2 class="ptitle">I miei calici</h2><p class="info">Tocca un calice per sapere a cosa serve e quali vini della tua cantina servirci. ${nW ? 'Ogni vino viene abbinato al calice migliore che hai.' : ''}</p>
   <div class="acts"><label class="btn pri">Riconosci da foto<input type="file" accept="image/*" capture="environment" hidden id="g_photo"></label><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
   ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}
@@ -195,50 +225,91 @@ function caliciPage() {
 function glassDetail(gl, shape) {
   const d = $('#dlg');
   const sh = gl ? gl.shape : shape, inf = GINFO[sh] || GINFO.altro, desc = (SHAPES.find((s) => s[0] === sh) || [])[2] || '';
-  const list = gl ? winesForGlass(gl) : winesIdealFor(sh).map((b) => ({ b, g: { rank: 0 } }));
-  const row = (x) => `<button class="row" data-a="open" data-id="${esc(x.b.id)}"><span style="display:flex;gap:12px">${imgSrc(x.b) ? `<img class="th" src="${imgSrc(x.b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(x.b))} ${esc(x.b.vintage || '')}<small>${x.g.rank === 0 ? 'Forma ideale' : 'Il migliore che hai per questo vino'} · ${serviceTemp(x.b)}${status(x.b) === 'st-now' ? ' · pronta da bere' : status(x.b) === 'st-past' ? ' · da aprire presto' : status(x.b) === 'st-wait' ? ' · da aspettare' : ''}</small></span></span></button>`;
-  d.innerHTML = `<div class="ghero">${gl && gl.img ? `<img class="gph hero" src="${gl.img}" alt="Foto del tuo calice">` : glassSvg(sh, 190)}</div>
+  const all = gl ? winesForGlass(gl) : winesIdealFor(sh).map((b) => ({ b, g: { rank: 0 } }));
+  const ideal = all.filter((x) => x.g.rank === 0), good = all.filter((x) => x.g.rank > 0);
+  const rs = gl && gl.research;
+  const st = (b) => (status(b) === 'st-now' ? ' · pronta da bere' : status(b) === 'st-past' ? ' · da aprire presto' : status(b) === 'st-wait' ? ' · da aspettare' : '');
+  const row = (b, why) => `<button class="row" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(b))} ${esc(b.vintage || '')}<small>${serviceTemp(b)}${st(b)}</small>${why ? `<span class="why">${esc(why)}</span>` : ''}</span></span></button>`;
+  const picks = rs && Array.isArray(rs.picks) ? rs.picks.filter((x) => S.bottles[x.id] && inCellar(S.bottles[x.id])) : [];
+  const more = (arr, n) => arr.length > n ? `<details class="more"><summary>Altri ${arr.length - n}</summary>${arr.slice(n).map((x) => row(x.b)).join('')}</details>` : '';
+  d.innerHTML = `<div class="ghero">${glassSvg(sh, 200, { profile: gl && gl.profile })}</div>
   ${gl && gl.brand ? `<span class="brand lg">${esc(gl.brand)}</span>` : `<p class="eyebrow">${gl ? 'Il tuo calice' : 'Forma di calice'}</p>`}<h2 class="dtitle">${esc(gl ? gl.model || gName(gl) : shapeName(sh))}</h2>
-  <div class="chips"><span>Forma: ${esc(shapeName(sh))}</span>${gl && gl.qty ? `<span>${gl.qty} pezzi</span>` : ''}${gl && gl.conf ? `<span>riconosciuto da foto · certezza ${esc(gl.conf)}</span>` : ''}</div>
-  ${desc ? `<p>${esc(desc)}</p>` : ''}
-  <div class="svc">${inf.per ? `<p><span class="svk">Perché questa forma</span>${esc(inf.per)}</p>` : ''}${inf.vini ? `<p><span class="svk">Vini ideali</span>${esc(inf.vini)}</p>` : ''}${inf.serv ? `<p><span class="svk">Quanto versare</span>${esc(inf.serv)}</p>` : ''}${inf.cura ? `<p><span class="svk">Cura</span>${esc(inf.cura)}</p>` : ''}${gl && gl.note ? `<p><span class="svk">Note</span>${esc(gl.note)}</p>` : ''}</div>
-  <h3 class="sub">${gl ? 'Da servire in questo calice' : 'I tuoi vini ideali per questa forma'} <small class="free">${list.length}</small></h3>
-  ${list.length ? list.slice(0, 60).map(row).join('') : `<p class="info">${gl ? 'Nessun vino della tua cantina: per ognuno hai un calice più adatto.' : 'Nessun vino della tua cantina ha questa come forma ideale.'}</p>`}
+  <div class="chips"><span>Forma: ${esc(shapeName(sh))}</span>${gl && gl.qty ? `<span>${gl.qty} pezzi</span>` : ''}${gl && gl.profile ? '<span>sagoma ricalcata dalla tua foto</span>' : ''}</div>
+  ${gl ? `<section class="research">${rs ? `<p class="svk">Dalla ricerca su questo modello</p>${rs.designed ? `<p>${esc(rs.designed)}</p>` : ''}${rs.specs ? `<p class="info">${esc(rs.specs)}</p>` : ''}${rs.avoid ? `<p class="info"><b>Meno adatto a:</b> ${esc(rs.avoid)}</p>` : ''}${(rs.links || []).length ? `<p class="info">Fonti: ${rs.links.slice(0, 4).map((l) => `<a class="link" target="_blank" rel="noopener" href="${esc(l.u)}">${esc(l.t)}</a>`).join(' ')}</p>` : ''}` : `<p class="svk">Ricerca approfondita</p><p class="info">Cerco online per quali vini è stato progettato ${esc(gName(gl))} e scelgo dalla tua cantina solo le bottiglie che lo valorizzano davvero.</p>`}
+  <div class="acts"><button class="btn${rs ? '' : ' pri'}" id="gd_r">${rs ? 'Rifai la ricerca' : 'Fai la ricerca'}</button></div><p class="info" id="gd_rm"></p></section>` : ''}
+  ${picks.length ? `<h3 class="sub">Le scelte del sommelier <small class="free">${picks.length}</small></h3>${picks.map((x) => row(S.bottles[x.id], x.why)).join('')}` : ''}
+  <h3 class="sub">${gl ? 'Perfetti in questo calice' : 'I tuoi vini ideali per questa forma'} <small class="free">${ideal.length}</small></h3>
+  ${ideal.length ? ideal.slice(0, 8).map((x) => row(x.b)).join('') + more(ideal, 8) : `<p class="info">${gl ? 'Nessun vino della tua cantina ha questo come calice ideale.' : 'Nessun vino della tua cantina ha questa come forma ideale.'}</p>`}
+  ${gl && good.length ? `<h3 class="sub">Vanno bene anche <small class="free">${good.length}</small></h3><p class="info">Non è la loro forma ideale, ma è il calice migliore che hai per loro.</p>${good.slice(0, 5).map((x) => row(x.b)).join('')}${more(good, 5)}` : ''}
+  <details class="more"><summary>Tutto su questa forma</summary>${desc ? `<p>${esc(desc)}</p>` : ''}<div class="svc">${inf.per ? `<p><span class="svk">Perché questa forma</span>${esc(inf.per)}</p>` : ''}${inf.vini ? `<p><span class="svk">Vini ideali</span>${esc(inf.vini)}</p>` : ''}${inf.serv ? `<p><span class="svk">Quanto versare</span>${esc(inf.serv)}</p>` : ''}${inf.cura ? `<p><span class="svk">Cura</span>${esc(inf.cura)}</p>` : ''}${gl && gl.note ? `<p><span class="svk">Note</span>${esc(gl.note)}</p>` : ''}</div></details>
   <div class="acts" style="margin-top:14px">${gl ? `<button class="btn" id="gd_e">Modifica</button><button class="btn" id="gd_d">Elimina</button>` : `<button class="btn pri" id="gd_add">Aggiungi ai miei calici</button>`}<button class="btn" id="gd_x">Chiudi</button></div>`;
   $('#gd_x').onclick = () => d.close();
   if (gl) {
     $('#gd_e').onclick = () => glassEdit(gl);
+    $('#gd_r').onclick = async () => {
+      const m = $('#gd_rm'); $('#gd_r').disabled = true;
+      try { await researchGlass(gl, (t) => { m.textContent = t; }); glassDetail(GLASSES.find((x) => x.id === gl.id) || gl); }
+      catch (e) { m.textContent = 'Ricerca non riuscita: ' + errorHint(e.message) + ' (' + e.message + ')'; $('#gd_r').disabled = false; }
+    };
     let armed = false;
     $('#gd_d').onclick = async (e) => { if (!armed) { armed = true; e.target.textContent = 'Conferma eliminazione'; return; } GLASSES = GLASSES.filter((x) => x.id !== gl.id); await saveGlasses(); d.close(); render(); };
   } else $('#gd_add').onclick = () => glassEdit({ id: gid(), shape: sh, name: '', qty: null }, true);
   d.onclose = null;
   if (!d.open) d.showModal();
 }
+// Ricerca approfondita: per cosa è progettato il modello (dal produttore e da chi lo recensisce) e scelta dalla cantina.
+async function researchGlass(gl, onMsg) {
+  if (!aiReady()) throw new Error('serve la chiave dell\'IA (api key) nelle Impostazioni');
+  const lab = { 'st-now': 'pronta', 'st-wait': 'da aspettare', 'st-past': 'oltre il picco' };
+  const others = GLASSES.filter((x) => x.id !== gl.id).map((x) => gName(x) + ' (' + shapeName(x.shape) + ')').join('; ') || 'nessuno';
+  const list = uniqW(Object.values(S.bottles).filter(inCellar)).slice(0, 200).map((b) => ({ id: b.id, vino: name(b), annata: b.vintage || undefined, tipo: b.type, zona: b.region || undefined, stato: lab[status(b)] || undefined, note: b.winfo ? b.winfo.slice(0, 90) : undefined }));
+  const ask = `Calice: ${gName(gl)}${gl.brand ? ' (marca ' + gl.brand + (gl.model ? ', modello ' + gl.model : '') + ')' : ''}, famiglia di forma: ${shapeName(gl.shape)}.
+1) Cerca sul web (sito del produttore, schede tecniche, recensioni di sommelier) per quali vini è stato progettato questo modello preciso, le sue caratteristiche (capacità, altezza, forma della coppa e della bocca) e per quali vini è meno adatto. Se il nome del modello indica già l'uso (per esempio «Red», «White», «Champagne»), tienine conto.
+2) Tra i vini della cantina qui sotto scegli SOLO quelli che questo calice valorizza davvero, al massimo 8, preferendo quelli pronti da bere. Considera che l'utente ha anche questi altri calici: ${others}; se per un vino un altro suo calice è chiaramente migliore, non sceglierlo qui. Meglio pochi e giusti che tanti.
+Rispondi solo con JSON: {"designed": "2-3 frasi su per cosa è pensato e perché", "specs": "caratteristiche tecniche in una frase, solo se trovate", "types": [i tipi di vino adatti tra "rosso","bianco","bollicine","rosato","altro"], "avoid": "per cosa è meno adatto, breve", "picks": [{"id": string, "why": "una frase concreta"}]}
+Non inventare dati tecnici: se non li trovi lascia la stringa vuota.
+Cantina: ${JSON.stringify(list)}`;
+  aiWaitNote = (s) => onMsg && onMsg('Gemini chiede una pausa: riprovo tra ' + s + ' secondi…');
+  onMsg && onMsg('Cerco informazioni sul calice e scelgo i vini… può volerci fino a un minuto.');
+  let j = null, links = [];
+  try {
+    try { const r = await aiSearch(ask); j = parseJsonLoose(r.text); links = r.links; } catch (e) { if (/api key|api_key|permission|failed to fetch/i.test(e.message)) throw e; }
+    if (!j) j = await aiJson(ask.replace('1) Cerca sul web (sito del produttore, schede tecniche, recensioni di sommelier)', '1) In base a quello che sai'));
+  } finally { aiWaitNote = null; }
+  const TY = ['rosso', 'bianco', 'bollicine', 'rosato', 'altro'];
+  const research = { designed: String(j.designed || ''), specs: String(j.specs || ''), avoid: String(j.avoid || ''), types: (Array.isArray(j.types) ? j.types : []).filter((t) => TY.includes(t)), picks: (Array.isArray(j.picks) ? j.picks : []).filter((x) => x && S.bottles[x.id]).slice(0, 8).map((x) => ({ id: x.id, why: String(x.why || '') })), links, at: Date.now() };
+  const i = GLASSES.findIndex((x) => x.id === gl.id);
+  if (i >= 0) { GLASSES[i] = { ...GLASSES[i], research }; await saveGlasses(); }
+  if (tab === 'calici') render();
+  return research;
+}
 function glassEdit(gl, isNew) {
   const d = $('#dlg2');
   const g = { ...gl };
   if (!g.brand && !g.model && g.name) g.model = g.name; // calici inseriti prima: il nome diventa il modello
   d.innerHTML = `<h2>${isNew ? 'Nuovo calice' : 'Modifica calice'}</h2>
-  <div class="ghero sm"><span id="ge_ph">${g.img ? `<img class="gph big" src="${g.img}" alt="">` : ''}</span><span id="ge_svg">${glassSvg(g.shape, 120)}</span></div>
-  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.img ? 'Cambia foto' : 'Aggiungi la foto del tuo calice'}<input type="file" accept="image/*" capture="environment" hidden id="ge_f"></label></div>
+  <div class="ghero sm"><span id="ge_svg">${glassSvg(g.shape, 140, { profile: g.profile })}</span></div>
+  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.profile ? 'Ricalca da un\'altra foto' : 'Ricalca dalla foto del tuo calice'}<input type="file" accept="image/*" capture="environment" hidden id="ge_f"></label>${g.profile ? '<button class="btn" id="ge_np" type="button">Usa il disegno standard</button>' : ''}</div>
   <p class="info" id="ge_w">${g.why ? esc(g.why) : ''}</p>
   <div class="two"><div><label>Marca</label><input id="ge_b" placeholder="Es. Zalto, Riedel" value="${esc(g.brand || '')}"></div><div><label>Modello</label><input id="ge_m" placeholder="Es. Bordeaux, Veritas" value="${esc(g.model || '')}"></div></div>
   <label>Forma</label><select id="ge_s">${SHAPES.map((s) => `<option value="${s[0]}" ${g.shape === s[0] ? 'selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
   <div class="two"><div><label>Quanti ne hai</label><input id="ge_q" type="number" min="0" inputmode="numeric" value="${g.qty || ''}"></div><div></div></div>
   <label>Note</label><input id="ge_o" placeholder="Es. cristallo soffiato, regalo, solo per le occasioni" value="${esc(g.note || '')}">
   <div class="acts"><button class="btn pri" id="ge_ok">Salva</button><button class="btn" id="ge_x">Annulla</button></div>`;
-  $('#ge_s').onchange = () => { g.shape = $('#ge_s').value; $('#ge_svg').innerHTML = glassSvg(g.shape, 120); };
+  const redraw = () => { $('#ge_svg').innerHTML = glassSvg(g.shape, 140, { profile: g.profile }); };
+  $('#ge_s').onchange = () => { g.shape = $('#ge_s').value; redraw(); };
+  if ($('#ge_np')) $('#ge_np').onclick = () => { delete g.profile; redraw(); $('#ge_np').remove(); };
   $('#ge_f').onchange = async (e) => {
     const file = e.target.files[0]; e.target.value = '';
     if (!file) return;
     $('#ge_w').textContent = aiReady() ? 'Ritaglio la foto e riconosco il calice…' : 'Ritaglio la foto…';
     const r = await analyzeGlassPhoto(file, (t) => { $('#ge_w').textContent = t; });
-    g.img = r.img;
-    $('#ge_ph').innerHTML = g.img ? `<img class="gph big" src="${g.img}" alt="">` : '';
+    if (r.j && r.j.profile) g.profile = r.j.profile;
+    redraw();
     if (r.j) {
       if (r.j.brand && !$('#ge_b').value.trim()) $('#ge_b').value = r.j.brand;
       if (r.j.model && !$('#ge_m').value.trim()) $('#ge_m').value = r.j.model;
-      if (SHAPES.some((x) => x[0] === r.j.shape) && isNew) { $('#ge_s').value = r.j.shape; $('#ge_s').onchange(); }
+      if (SHAPES.some((x) => x[0] === r.j.shape) && isNew) { $('#ge_s').value = r.j.shape; g.shape = r.j.shape; redraw(); }
       g.conf = r.j.confidence;
     }
     $('#ge_w').textContent = r.msg || '';
@@ -247,12 +318,15 @@ function glassEdit(gl, isNew) {
   $('#ge_ok').onclick = async () => {
     const brand = $('#ge_b').value.trim(), model = $('#ge_m').value.trim();
     const ng = { ...g, brand, model, name: [brand, model].filter(Boolean).join(' '), shape: $('#ge_s').value, qty: +$('#ge_q').value || null, note: $('#ge_o').value.trim() };
-    delete ng.why;
+    delete ng.why; delete ng.img; // la foto serve solo per il ricalco: non la conservo
+    const old = GLASSES.find((x) => x.id === ng.id);
+    if (old && (old.brand !== ng.brand || old.model !== ng.model || old.shape !== ng.shape)) delete ng.research;
     const i = GLASSES.findIndex((x) => x.id === ng.id);
     if (i >= 0) GLASSES[i] = ng; else GLASSES.push(ng);
     await saveGlasses(); haptic(); d.close();
     const d1 = $('#dlg'); if (d1.open) d1.close();
     render();
+    if (!ng.research && aiReady() && (ng.brand || ng.model)) researchGlass(ng, (t) => { const m = $('#g_msg'); if (m) m.textContent = t; }).then(() => { const m = $('#g_msg'); if (m) m.textContent = 'Ricerca completata per ' + gName(ng) + '.'; }).catch(() => {});
   };
   d.onclose = null;
   d.showModal();
@@ -273,11 +347,12 @@ async function analyzeGlassPhoto(file, onMsg) {
   aiWaitNote = (s) => onMsg && onMsg('Gemini chiede una pausa: riprovo tra ' + s + ' secondi…');
   try {
     const j = await aiJson(`Questa è la foto di un calice (bicchiere da vino) di proprietà dell'utente. Rispondi solo con JSON:
-{"brand": string|null, "model": string|null, "shape": chiave, "confidence": "alta"|"media"|"bassa", "why": string, "box": {"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}}
+{"brand": string|null, "model": string|null, "shape": chiave, "confidence": "alta"|"media"|"bassa", "why": string, "box": {"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}, "profile": {...}}
 - "brand" e "model": marca e modello se li riconosci con buona certezza dalla forma o da scritte/incisioni (per esempio Zalto Denk'Art Bordeaux, Riedel Veritas, Gabriel-Glas StandArt, Mark Thomas Double Bend Red, Schott Zwiesel, Spiegelau, Lehmann, Italesse, Rona). Se non sei sicuro usa null: non inventare.
 - "shape": UNA di queste chiavi per la famiglia di forma: ${SHAPES.map((s) => s[0] + ' (' + s[1] + ')').join(', ')}.
 - "why": una frase su cosa ti ha fatto riconoscere forma e modello.
-- "box": il rettangolo che contiene il calice intero (dalla bocca al piede), in frazioni di larghezza e altezza dell'immagine.`, await toB64(file, 1200));
+- "box": il rettangolo che contiene il calice intero (dalla bocca al piede), in frazioni di larghezza e altezza dell'immagine.
+- "profile": la sagoma del calice per disegnarlo, misurata sulla foto: {"bowl": [[y, mezza_larghezza], ...], "bowlEnd": y, "base": mezza_larghezza_del_piede}. Tutte le misure sono frazioni dell'ALTEZZA TOTALE del calice (dalla bocca, y=0, al piede, y=1). "bowl" sono 10-16 punti del bordo esterno della coppa dalla bocca (y=0) fino al punto dove la coppa si chiude sullo stelo; per ognuno la metà della larghezza della coppa a quell'altezza. Se la coppa ha spigoli o pieghe, metti un punto esattamente su ogni spigolo. "bowlEnd" è dove inizia lo stelo.`, await toB64(file, 1200));
     let img = null; try { img = await cropGlass(file, j.box); } catch (_) {}
     return { img, j, msg: (j.why ? 'Riconosciuto: ' + String(j.why).replace(/[.\s]+$/, '') + '. ' : '') + 'Controlla e correggi se serve.' };
   } catch (err) {
@@ -293,6 +368,6 @@ async function glassFromPhoto(e) {
   const r = await analyzeGlassPhoto(file, (t) => { if (m) m.textContent = t; });
   if (m) m.textContent = '';
   const j = r.j || {};
-  glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', img: r.img, conf: j.confidence, why: r.msg }, true);
+  glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', profile: j.profile && Array.isArray(j.profile.bowl) ? j.profile : undefined, conf: j.confidence, why: r.msg }, true);
 }
 document.addEventListener('change', (e) => { if (e.target && e.target.id === 'g_photo') glassFromPhoto(e); });
