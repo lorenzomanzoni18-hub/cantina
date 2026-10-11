@@ -94,7 +94,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '26';
+const APP_VERSION = '27';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -1425,5 +1425,14 @@ document.addEventListener('input', (e) => {
   } catch (e) { msg('Non riesco ad aprire il salvataggio sul telefono: ' + esc(e.message)); }
   render();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    // quando arriva una versione nuova, ricarico una volta sola per mostrarla subito
+    const hadCtl = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadCtl && !reloaded) { reloaded = true; location.reload(); } });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((r) => {
+      r.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') r.update().catch(() => {}); });
+    }).catch(() => {});
+  }
 })();

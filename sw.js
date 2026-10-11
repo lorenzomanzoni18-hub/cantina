@@ -1,5 +1,5 @@
 // Salva i file dell'app per farla funzionare anche senza connessione.
-const VERSION = 'cantina-v26';
+const VERSION = 'cantina-v27';
 const FILES = ['./', './index.html', './styles.css', './app.js', './extras.js', './backup.js', './tools.js', './calici.js', './more.js', './tracer.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
@@ -23,15 +23,16 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
-  e.respondWith(
-    caches.match(req).then((hit) => {
-      const net = fetch(req)
-        .then((res) => {
-          if (res.ok) caches.open(VERSION).then((c) => c.put(req, res.clone()));
-          return res;
-        })
-        .catch(() => hit);
-      return hit || net;
-    })
-  );
+  // Prima la rete (così vedi subito l'ultima versione); se in 4 secondi non risponde o sei offline, la copia salvata.
+  e.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    try {
+      const res = await Promise.race([fetch(req, { cache: 'no-cache' }), new Promise((_, rej) => setTimeout(() => rej(new Error('lento')), 4000))]);
+      if (res && res.ok) cache.put(req, res.clone());
+      return res;
+    } catch (_) {
+      const hit = await cache.match(req, { ignoreSearch: true });
+      return hit || fetch(req);
+    }
+  })());
 });
