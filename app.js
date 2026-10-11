@@ -94,7 +94,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '17';
+const APP_VERSION = '18';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -724,6 +724,7 @@ async function openBottle(id, pre) {
   <label style="margin-top:12px">Quando berla</label><textarea id="f_drink" rows="3">${esc(b.drink)}</textarea>
   <label>Abbinamenti consigliati</label><textarea id="f_pairing" rows="2">${esc(b.pairing)}</textarea>
   <div class="info" id="rext"></div>
+  <h3 class="sub">Servizio</h3><div id="svcbox">${serviceHtml(b)}</div>
   <div id="f_posw" ${state0 === 'in' || state0 === 'drunk' ? '' : 'hidden'} ${b.drunk ? 'hidden' : ''}><label>Posizione</label><select id="f_pos">${opts}</select></div>
   <h3 class="sub">Degustazioni</h3><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
   <label>Il produttore</label><textarea id="f_info" rows="6">${esc(b.info)}</textarea>
@@ -1161,6 +1162,9 @@ function openSettings() {
   <p class="info">Un file CSV con una riga per vino (anche esportato da Vivino o CellarTracker, o da un tuo foglio Excel salvato come CSV). Riconosco da solo colonne come produttore, vino, annata, tipo, formato, zona, quantità e prezzo.</p>
   <div class="acts"><label class="btn">Importa file CSV<input type="file" accept=".csv,text/csv,text/plain" hidden id="b_csv"></label></div>
   <p class="info" id="b_msg"></p>
+  <h3 style="margin:16px 0 4px;font-size:16px">I miei calici</h3>
+  <p class="info">${GLASSES.length ? GLASSES.length + ' calici inseriti.' : 'Nessun calice inserito.'} Servono per consigliarti il calice giusto per ogni bottiglia.</p>
+  <div class="acts"><button class="btn" data-a="glasses" type="button">Gestisci i calici</button></div>
   <h3 style="margin:16px 0 4px;font-size:16px">Spazio sul telefono</h3>
   <p class="info">Alleggerisce le foto troppo grandi e toglie i doppioni, senza perdita visibile di qualità.</p>
   <div class="acts"><button class="btn" id="o_go">Ottimizza le foto</button></div><p class="info" id="o_msg"></p>
@@ -1236,7 +1240,7 @@ async function exportBackup() {
       const c = await dbGet('photos', b.id + ':c'), f = await dbGet('photos', b.id + ':f');
       bottles.push({ ...b, photoC: c ? await blobToDataURL(c) : null, photoF: f ? await blobToDataURL(f) : null });
     }
-    const data = JSON.stringify({ app: 'cantina', version: 1, exported: new Date().toISOString(), shelves: S.shelves, bottles });
+    const data = JSON.stringify({ app: 'cantina', version: 1, exported: new Date().toISOString(), shelves: S.shelves, glasses: GLASSES, bottles });
     const fname = 'cantina-backup-' + new Date().toISOString().slice(0, 10) + '.json';
     const file = new File([data], fname, { type: 'application/json' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
@@ -1267,6 +1271,7 @@ async function importBackup(e) {
       S.bottles[b.id] = b;
     }
     if (Array.isArray(j.shelves) && j.shelves.length) { S.shelves = j.shelves; await dbPut('kv', S.shelves, 'shelves'); }
+    if (Array.isArray(j.glasses) && j.glasses.length) { GLASSES = j.glasses; await saveGlasses(); }
     render();
     m.textContent = 'Importazione completata.';
   } catch (err) { m.textContent = 'Importazione non riuscita: ' + err.message; }
@@ -1294,6 +1299,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '', tag: '' }; q = ''; render(); }
   else if (a === 'pdf') exportPdf();
   else if (a === 'carta') openCarta();
+  else if (a === 'glasses') openGlasses();
   else if (a === 'csv') exportCsv();
   else if (a === 'ics') exportIcs();
   else if (a === 'pair') pairNow();
@@ -1347,6 +1353,7 @@ document.addEventListener('input', (e) => {
     S.bottles = {};
     bs.forEach((b) => { S.bottles[b.id] = b; });
     S.shelves = (await dbGet('kv', 'shelves')) || [];
+    await loadGlasses();
   } catch (e) { msg('Non riesco ad aprire il salvataggio sul telefono: ' + esc(e.message)); }
   render();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});

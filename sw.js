@@ -1,6 +1,6 @@
 // Salva i file dell'app per farla funzionare anche senza connessione.
-const VERSION = 'cantina-v17';
-const FILES = ['./', './index.html', './styles.css', './app.js', './extras.js', './backup.js', './tools.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
+const VERSION = 'cantina-v18';
+const FILES = ['./', './index.html', './styles.css', './app.js', './extras.js', './backup.js', './tools.js', './calici.js', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VERSION).then((c) => c.addAll(FILES)).then(() => self.skipWaiting()));

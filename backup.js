@@ -13,7 +13,7 @@ const ymd = (d) => new Date(d).toLocaleDateString('sv-SE');
 const fmtWhen = (t) => (t ? new Date(t).toLocaleString('it-IT', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'mai');
 
 function snapshotData() {
-  return { app: 'cantina', version: 2, exported: new Date().toISOString(), shelves: S.shelves, bottles: Object.values(S.bottles) };
+  return { app: 'cantina', version: 2, exported: new Date().toISOString(), shelves: S.shelves, glasses: GLASSES, bottles: Object.values(S.bottles) };
 }
 
 /* ---- Copie sul telefono ---- */
@@ -39,6 +39,7 @@ async function restoreSnapshot(key) {
   for (const b of j.bottles) { await dbPut('bottles', b); S.bottles[b.id] = b; }
   S.shelves = j.shelves || [];
   await dbPut('kv', S.shelves, 'shelves');
+  if (Array.isArray(j.glasses)) { GLASSES = j.glasses; await saveGlasses(); }
   render();
 }
 
@@ -138,6 +139,7 @@ async function cloudRestore(onStep) {
   }
   await dbPut('kv', sent, 'ghPhotos');
   if (Array.isArray(j.shelves) && j.shelves.length) { S.shelves = j.shelves; await dbPut('kv', S.shelves, 'shelves'); }
+  if (Array.isArray(j.glasses) && j.glasses.length) { GLASSES = j.glasses; await saveGlasses(); }
   render();
   return j.bottles.length;
 }

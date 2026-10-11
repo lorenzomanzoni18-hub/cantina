@@ -116,7 +116,7 @@ function stasera() {
   const c = kind(Date.now()), good = isGood(c);
   const n = Object.values(S.bottles).filter((b) => inCellar(b)).length;
   const seg = `<div class="seg"><button data-a="pmode" data-m="dish" aria-pressed="${pairMode === 'dish'}">Un piatto</button><button data-a="pmode" data-m="menu" aria-pressed="${pairMode === 'menu'}">Un menu</button><button data-a="pmode" data-m="ask" aria-pressed="${pairMode === 'ask'}">Chiedi</button></div>`;
-  const head = keyBanner() + `<div class="note"><b>Stasera</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
+  const head = keyBanner() + `<button class="qc glassbtn" data-a="glasses"><span class="qi wait"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10l-1 7a4 4 0 0 1-8 0zM12 14v6M8 21h8"/></svg></span><span><b>I miei calici</b><small>${GLASSES.length ? GLASSES.length + ' inseriti: li uso per consigliarti il calice giusto' : 'Inseriscili per sapere quale usare con ogni bottiglia'}</small></span></button><div class="note"><b>Stasera</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
   if (pairMode === 'ask') return head + askView();
   if (pairMode === 'menu') return head + `<label for="menu">Il menu, una portata per riga</label>
   <textarea id="menu" rows="6" placeholder="Aperitivo: crudo di gamberi e ostriche&#10;Primo: risotto ai funghi porcini&#10;Secondo: guancia di manzo brasata&#10;Formaggi: pecorino stagionato&#10;Dolce: tarte tatin">${esc(menuText)}</textarea>
@@ -134,7 +134,7 @@ function stasera() {
 
 function pairCard(b, reason) {
   const st = { 'st-now': 'Pronta da bere', 'st-wait': 'Da aspettare', 'st-past': 'Oltre il picco' }[status(b)] || '';
-  return `<button class="row pick" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span><b>${esc(name(b))} ${esc(b.vintage || '')}</b><small>${isStd(b) ? '' : esc(sizeName(sizeMl(b))) + ' · '}${esc(posText(b))}${st ? ' · ' + st : ''}</small>${reason ? `<span class="why">${esc(reason)}</span>` : ''}</span></span></button>`;
+  return `<button class="row pick" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span><b>${esc(name(b))} ${esc(b.vintage || '')}</b><small>${isStd(b) ? '' : esc(sizeName(sizeMl(b))) + ' · '}${esc(posText(b))}${st ? ' · ' + st : ''}</small>${reason ? `<span class="why">${esc(reason)}</span>` : ''}<span class="why glass">${esc(glassLine(b))}</span></span></span></button>`;
 }
 
 function localPairScore(b, dish) {
@@ -203,10 +203,10 @@ async function pairMenu() {
     try {
       const j = await aiJson(`Sei il sommelier di un ristorante e lavori con uno chef. Stasera c'è questo menu per ${guests} persone, una portata per riga:
 ${courses.map((c, i) => (i + 1) + '. ' + c).join('\n')}
-Componi la sequenza dei vini scegliendo SOLO dalla lista qui sotto (usa gli id esatti). Regole: segui una progressione sensata (dal più leggero al più strutturato, bollicine all'inizio, vini dolci o passiti col dolce), preferisci bottiglie pronte da bere, puoi usare lo stesso vino per due portate vicine se è l'abbinamento migliore. Considera che ogni persona beve circa un calice da 120 ml a portata: indica quante bottiglie aprire di ciascun vino (un magnum vale due bottiglie). Per ogni portata spiega in 1-2 frasi concrete perché quel vino va col piatto, e dai un consiglio di servizio (temperatura, se decantare e quanto prima aprirla). Se per una portata nessun vino della lista è adatto, metti id null e suggerisci in "reason" che tipo di vino servirebbe. Non inventare dati che non sono nella lista.
-Rispondi solo con JSON: {"seq":[{"course":string,"id":string|null,"bottles":number,"reason":string,"service":string}],"note":string}
+Componi la sequenza dei vini scegliendo SOLO dalla lista qui sotto (usa gli id esatti). Regole: segui una progressione sensata (dal più leggero al più strutturato, bollicine all'inizio, vini dolci o passiti col dolce), preferisci bottiglie pronte da bere, puoi usare lo stesso vino per due portate vicine se è l'abbinamento migliore. Considera che ogni persona beve circa un calice da 120 ml a portata: indica quante bottiglie aprire di ciascun vino (un magnum vale due bottiglie). Per ogni portata spiega in 1-2 frasi concrete perché quel vino va col piatto, e dai un consiglio di servizio (temperatura, se decantare e quanto prima aprirla). Indica anche quale calice usare scegliendo tra quelli che ha: ${glassesForAI()}. Se non ne ha uno adatto, suggerisci la forma ideale. Tieni conto di quanti pezzi ha di ciascun calice rispetto alle persone. Se per una portata nessun vino della lista è adatto, metti id null e suggerisci in "reason" che tipo di vino servirebbe. Non inventare dati che non sono nella lista.
+Rispondi solo con JSON: {"seq":[{"course":string,"id":string|null,"bottles":number,"reason":string,"service":string,"glass":string}],"note":string}
 Lista: ${JSON.stringify(list)}`);
-      seq = (j.seq || []).slice(0, courses.length).map((x, i) => ({ course: x.course || courses[i], id: x.id && S.bottles[x.id] && inCellar(S.bottles[x.id]) ? x.id : null, bottles: Math.max(1, Math.round(+x.bottles || 1)), reason: typeof x.reason === 'string' ? x.reason : '', service: typeof x.service === 'string' ? x.service : '' }));
+      seq = (j.seq || []).slice(0, courses.length).map((x, i) => ({ course: x.course || courses[i], id: x.id && S.bottles[x.id] && inCellar(S.bottles[x.id]) ? x.id : null, bottles: Math.max(1, Math.round(+x.bottles || 1)), reason: typeof x.reason === 'string' ? x.reason : '', service: typeof x.service === 'string' ? x.service : '', glass: typeof x.glass === 'string' ? x.glass : '' }));
       note = typeof j.note === 'string' ? j.note : '';
     } catch (e) { note = 'L\'IA non è disponibile adesso (' + e.message + '): ecco una proposta senza IA.'; }
     aiWaitNote = null;
@@ -222,7 +222,7 @@ Lista: ${JSON.stringify(list)}`);
   }
   menuHtml = (note ? `<p class="info">${esc(note)}</p>` : '') + '<ol class="menuseq">' + seq.map((x) => {
     const b = x.id && S.bottles[x.id];
-    return `<li><p class="course">${esc(x.course)}</p>${b ? pairCard(b, x.reason) + `<p class="info" style="margin:4px 0 0">${x.bottles > 1 ? 'Apri ' + x.bottles + ' bottiglie' : 'Basta una bottiglia'}${x.service ? ' · ' + esc(x.service) : ''}</p>` : `<p class="info">${esc(x.reason || 'Nessuna bottiglia adatta in cantina.')}</p>`}</li>`;
+    return `<li><p class="course">${esc(x.course)}</p>${b ? pairCard(b, x.reason) + `<p class="info" style="margin:4px 0 0">${x.bottles > 1 ? 'Apri ' + x.bottles + ' bottiglie' : 'Basta una bottiglia'}${x.service ? ' · ' + esc(x.service) : ''}${x.glass ? ' · Calice: ' + esc(x.glass) : ''}</p>` : `<p class="info">${esc(x.reason || 'Nessuna bottiglia adatta in cantina.')}</p>`}</li>`;
   }).join('') + '</ol>';
   out.innerHTML = menuHtml;
 }
@@ -262,7 +262,7 @@ async function askSend(text) {
   askLog.push(entry);
   aiWaitNote = (sec) => { entry.err = 'Gemini chiede una pausa: riprovo tra ' + sec + ' secondi…'; render(); };
   try {
-    const j = await aiJson(`Sei il sommelier personale del proprietario di questa cantina. Rispondi in italiano, in modo concreto e cordiale, in 3-8 frasi, senza Markdown. Usa solo i vini della sua cantina qui sotto quando consigli bottiglie (puoi citare quelli in arrivo o nei desideri dicendolo). Se la domanda riguarda vini che non ha, puoi dare consigli generali, chiarendo che non sono in cantina. Non inventare dati che non sono nella lista. Oggi è ${new Date().toLocaleDateString('it-IT')} e la Luna è in giorno ${c[2]} (calendario biodinamico: citalo solo se pertinente).
+    const j = await aiJson(`Sei il sommelier personale del proprietario di questa cantina. Rispondi in italiano, in modo concreto e cordiale, in 3-8 frasi, senza Markdown. Usa solo i vini della sua cantina qui sotto quando consigli bottiglie (puoi citare quelli in arrivo o nei desideri dicendolo). Se la domanda riguarda vini che non ha, puoi dare consigli generali, chiarendo che non sono in cantina. Non inventare dati che non sono nella lista. I suoi calici: ${glassesForAI()}. Se chiede del servizio o dei calici, consiglia tra questi (o la forma ideale se manca). Oggi è ${new Date().toLocaleDateString('it-IT')} e la Luna è in giorno ${c[2]} (calendario biodinamico: citalo solo se pertinente).
 ${hist ? 'Conversazione precedente:\n' + hist + '\n' : ''}Domanda: ${qx}
 Rispondi solo con JSON: {"answer": string, "ids": [id dei vini della lista che consigli o citi, al massimo 4]}.
 Cantina: ${JSON.stringify(list)}

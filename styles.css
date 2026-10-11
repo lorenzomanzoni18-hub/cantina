@@ -277,3 +277,15 @@ h3.sub{font-family:"Cormorant Garamond",Georgia,serif;font-size:22px;margin:18px
 .qa .q{margin:0 0 6px;padding:10px 12px;background:var(--sf2);border-radius:14px 14px 4px 14px;margin-left:15%;font-weight:600}
 .qa .a{padding:12px 14px;background:var(--sf);border:1px solid var(--line);border-radius:14px 14px 14px 4px;margin-right:6%;line-height:1.5;margin-bottom:6px}
 .seg button{font-size:14px}
+
+/* --- v18: calici e servizio --- */
+.svc{background:var(--sf2);border:1px solid var(--line);border-radius:12px;padding:4px 12px;margin-bottom:12px}
+.svc p{margin:8px 0;font-size:14px;line-height:1.45}
+.svk{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);font-weight:700;margin-bottom:1px}
+.why.glass{color:var(--mute);font-size:13px}
+.glassbtn{width:100%;margin:4px 0 10px}
+.glrow{display:grid;grid-template-columns:1fr 1fr;gap:6px 8px;padding:10px 0;border-bottom:1px solid var(--line)}
+.glrow input,.glrow select{margin:0}
+.glrow [data-gk="qty"]{max-width:none}
+.glrow .link{justify-self:start;align-self:center}
+.glq{display:flex!important;align-items:center;gap:8px;font-size:13px}.glq input{margin:0;width:72px}
