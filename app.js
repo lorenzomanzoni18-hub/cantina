@@ -10,17 +10,37 @@ const num = (v) => {
   return Number.isFinite(n) ? n : null;
 };
 
+/* ===== Formati di bottiglia (in millilitri) ===== */
+const SIZES = [
+  [187, 'Piccolo', '18,7 cl'], [375, 'Mezza', '37,5 cl'], [500, '', '50 cl'], [620, 'Clavelin', '62 cl'], [700, '', '70 cl'],
+  [750, 'Standard', '75 cl'], [1000, 'Litro', '1 L'], [1500, 'Magnum', '1,5 L'], [3000, 'Doppio magnum / Jéroboam', '3 L'],
+  [4500, 'Réhoboam', '4,5 L'], [5000, 'Jéroboam bordolese', '5 L'], [6000, 'Mathusalem / Impériale', '6 L'], [9000, 'Salmanazar', '9 L'],
+  [12000, 'Balthazar', '12 L'], [15000, 'Nabuchodonosor', '15 L'], [18000, 'Melchior', '18 L'],
+];
+const sizeMl = (b) => (b && Number(b.size) > 0 ? Number(b.size) : 750);
+const volTxt = (ml) => (ml >= 1000 ? String(+(ml / 1000).toFixed(2)).replace('.', ',') + ' L' : String(+(ml / 10).toFixed(1)).replace('.', ',') + ' cl');
+function sizeName(ml) { const s = SIZES.find((x) => x[0] === ml); return s ? (s[1] && s[1] !== 'Standard' ? s[1] + ' ' + s[2] : s[2]) : volTxt(ml); }
+const sizeShort = (ml) => volTxt(ml).replace(' ', '');
+const isStd = (b) => sizeMl(b) === 750;
+
 /* ===== Stato ===== */
 let S = { shelves: [], bottles: {} };
 let dayOff = 0, tab = 'cantina', q = '', px = null;
 
-document.addEventListener('pointerdown', (e) => { px = e.target.closest('.dialwrap') ? e.clientX : null; });
+let pzone = null, py = 0;
+document.addEventListener('pointerdown', (e) => {
+  pzone = e.target.closest('.dialwrap') ? 'dial' : e.target.closest('.calwrap') ? 'cal' : null;
+  px = pzone ? e.clientX : null; py = e.clientY;
+});
 document.addEventListener('pointerup', (e) => {
   if (px === null) return;
-  const dx = e.clientX - px;
+  const dx = e.clientX - px, dy = e.clientY - py;
   px = null;
-  if (Math.abs(dx) > 40) { dayOff = Math.max(-7, Math.min(60, dayOff + (dx < 0 ? 1 : -1))); render(); }
+  if (Math.abs(dx) <= 40 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  if (pzone === 'cal') { swallowClick = Date.now(); calShift(dx < 0 ? 1 : -1); return; }
+  dayOff += dx < 0 ? 1 : -1; syncCal(); render();
 });
+let swallowClick = 0;
 
 /* ===== Salvataggio sul telefono (IndexedDB) ===== */
 let db;
@@ -71,13 +91,14 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '14';
+const APP_VERSION = '15';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
   const m = String(msg || '').toLowerCase();
+  if (m.includes('si azzera')) return 'Il limite gratuito di oggi è finito su tutti i modelli Gemini che l\'app prova. Le bottiglie già aggiornate restano salvate: riprova dopo l\'orario indicato.';
   if (m.includes('api key') || m.includes('api_key') || m.includes('invalid x-api-key') || m.includes('authentication')) return 'La chiave non risulta valida. Controlla di averla copiata tutta, senza spazi, e che sia quella del servizio scelto.';
   if (m.includes('quota') || m.includes('rate') || m.includes('429') || m.includes('resource_exhausted')) return 'Hai raggiunto il limite gratuito del servizio. Riprova tra un minuto o piu tardi.';
   if (m.includes('not found') || m.includes('404') || m.includes('model')) return 'Il modello indicato non e stato trovato. Nelle Impostazioni prova a cambiare il nome del modello.';
@@ -100,6 +121,96 @@ function notice(title, body, actions) {
 }
 function aiReady() { const c = getCfg(); return !!(c.provider === 'anthropic' ? c.anthropicKey : c.geminiKey); }
 
+/* ===== Gemini: modelli di riserva e limiti gratuiti =====
+   Google conta il limite gratuito giornaliero separatamente per ogni modello:
+   quando uno finisce, l'app passa da sola al successivo. Il limite al minuto
+   invece si aspetta e si riprova. I limiti si azzerano a mezzanotte in California. */
+const GEM_MODELS = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3-flash-preview'];
+const GEMX_KEY = 'cantina.gemx';
+let aiWaitNote = null; // chi chiama può mostrare "aspetto N secondi"
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+function gemModels() { const c = getCfg(); return [c.geminiModel, ...GEM_MODELS].filter((m, i, a) => m && a.indexOf(m) === i); }
+function msToReset() {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hour: 'numeric', minute: 'numeric', hourCycle: 'h23' }).formatToParts(new Date());
+    const h = +p.find((x) => x.type === 'hour').value, m = +p.find((x) => x.type === 'minute').value;
+    return Math.max(60000, ((24 - h) * 60 - m) * 60000);
+  } catch (_) { return 6 * 3600000; }
+}
+const resetTime = () => new Date(Date.now() + msToReset()).toLocaleString('it-IT', { weekday: 'long', hour: '2-digit', minute: '2-digit' });
+function gemx() { try { const o = JSON.parse(localStorage.getItem(GEMX_KEY) || '{}'), n = Date.now(), r = {}; Object.keys(o).forEach((k) => { if (o[k] > n) r[k] = o[k]; }); return r; } catch (_) { return {}; } }
+function gemxMark(k, ms) { const o = gemx(); o[k] = Date.now() + (ms || msToReset()); try { localStorage.setItem(GEMX_KEY, JSON.stringify(o)); } catch (_) {} }
+function gemxClear() { try { localStorage.removeItem(GEMX_KEY); } catch (_) {} }
+function gemClassify(status, j) {
+  const e = (j && j.error) || {}, m = String(e.message || 'Errore ' + status), ml = m.toLowerCase();
+  const det = Array.isArray(e.details) ? e.details : [];
+  const qids = det.flatMap((d) => (d.violations || []).map((v) => String(v.quotaId || v.quotaMetric || ''))).join(' ');
+  const ri = det.find((d) => d.retryDelay);
+  const wait = ri ? parseFloat(ri.retryDelay) || 0 : 0;
+  if (status === 429 || e.status === 'RESOURCE_EXHAUSTED' || ml.includes('quota')) {
+    const search = /search|ground/i.test(qids + ' ' + m);
+    if (/perday|per_day|daily/i.test(qids + ' ' + m)) return { kind: 'day', m, search };
+    if (wait && wait <= 90) return { kind: 'minute', m, wait, search };
+    if (/perminute|per_minute/i.test(qids)) return { kind: 'minute', m, wait: 30, search };
+    return { kind: 'day', m, search };
+  }
+  if (status === 401 || status === 403 || ml.includes('api key') || ml.includes('api_key') || ml.includes('permission')) return { kind: 'key', m };
+  if (status === 404 || ml.includes('not found') || (ml.includes('model') && ml.includes('not supported'))) return { kind: 'model', m };
+  if (/search|ground/.test(ml) && status === 400) return { kind: 'nosearch', m };
+  if (status >= 500) return { kind: 'busy', m };
+  return { kind: 'other', m };
+}
+async function gemCall(body, search) {
+  const c = getCfg();
+  let last = null, tried = 0;
+  for (const model of gemModels()) {
+    const x = gemx();
+    if (x[model] || (search && x[model + '|s'])) continue;
+    tried++;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      let r, j;
+      try {
+        r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(model) + ':generateContent', {
+          method: 'POST', headers: { 'content-type': 'application/json', 'x-goog-api-key': c.geminiKey }, body: JSON.stringify(body),
+        });
+        j = await r.json().catch(() => ({}));
+      } catch (e) { throw new Error('Failed to fetch: ' + e.message); }
+      if (r.ok) return j;
+      const k = gemClassify(r.status, j);
+      last = k;
+      if (k.kind === 'key') throw new Error(k.m);
+      if (k.kind === 'minute' && attempt < 2) {
+        if (aiWaitNote) aiWaitNote(Math.ceil(k.wait));
+        await sleep(k.wait * 1000 + 800);
+        continue;
+      }
+      if (k.kind === 'day' || k.kind === 'minute') gemxMark(k.search && search ? model + '|s' : model, k.kind === 'minute' ? 120000 : 0);
+      else if (k.kind === 'model') gemxMark(model, 24 * 3600000);
+      else if (k.kind === 'nosearch') gemxMark(model + '|s', 7 * 24 * 3600000);
+      break; // passo al modello successivo
+    }
+  }
+  if (last && last.kind === 'minute') {
+    const err = new Error('Gemini chiede di rallentare (limite al minuto, quota). Riprova tra un paio di minuti.');
+    err.quota = true;
+    throw err;
+  }
+  if (!tried || (last && last.kind === 'day')) {
+    const err = new Error((search ? 'Ricerca web gratuita di Gemini esaurita' : 'Limite gratuito di Gemini esaurito') + ' per oggi su tutti i modelli (quota). Si azzera ' + resetTime() + '.');
+    err.quota = true;
+    throw err;
+  }
+  throw new Error(last ? last.m : 'Nessun modello Gemini disponibile.');
+}
+function parseJsonLoose(text) {
+  const t = String(text || '').replace(/```(?:json)?/gi, '');
+  const a = t.indexOf('{'), z = t.lastIndexOf('}');
+  if (a < 0 || z < a) return null;
+  const s = t.slice(a, z + 1);
+  try { return JSON.parse(s); } catch (_) {}
+  try { return JSON.parse(s.replace(/[\u0000-\u001f]+/g, ' ').replace(/,\s*([}\]])/g, '$1').replace(/\s*\[\d+(?:,\s*\d+)*\]/g, '')); } catch (_) { return null; }
+}
+
 async function aiJson(prompt, image) {
   const c = getCfg();
   let text;
@@ -118,18 +229,12 @@ async function aiJson(prompt, image) {
   } else {
     const parts = [{ text: prompt }];
     if (image) parts.push({ inline_data: { mime_type: 'image/jpeg', data: image } });
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.geminiModel) + ':generateContent', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': c.geminiKey },
-      body: JSON.stringify({ contents: [{ parts }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error((j.error && j.error.message) || 'Errore ' + r.status);
-    text = (((j.candidates || [])[0] || {}).content || { parts: [] }).parts.map((x) => x.text || '').join('');
+    const j = await gemCall({ contents: [{ parts }], generationConfig: { temperature: 0.2, responseMimeType: 'application/json' } }, false);
+    text = ((((j.candidates || [])[0] || {}).content || {}).parts || []).map((x) => x.text || '').join('');
   }
-  const a = text.indexOf('{'), z = text.lastIndexOf('}');
-  if (a < 0 || z < a) throw new Error('La risposta non era nel formato atteso. Riprova.');
-  return JSON.parse(text.slice(a, z + 1));
+  const o = parseJsonLoose(text);
+  if (!o) throw new Error('La risposta non era nel formato atteso. Riprova.');
+  return o;
 }
 
 async function aiSearch(prompt) {
@@ -148,13 +253,7 @@ async function aiSearch(prompt) {
       if (x.type === 'web_search_tool_result' && Array.isArray(x.content)) x.content.forEach((y) => y.url && links.push({ t: y.title || y.url, u: y.url }));
     }
   } else {
-    const r = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(c.geminiModel) + ':generateContent', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': c.geminiKey },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error((j.error && j.error.message) || 'Errore ' + r.status);
+    const j = await gemCall({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }, true);
     const cand = (j.candidates || [])[0] || {};
     text = ((cand.content || { parts: [] }).parts || []).map((x) => x.text || '').join('');
     ((cand.groundingMetadata || {}).groundingChunks || []).forEach((g) => g.web && g.web.uri && links.push({ t: g.web.title || g.web.uri, u: g.web.uri }));
@@ -173,7 +272,7 @@ Poi da 1 a 3 righe, ognuna che inizia con "• " e riguarda UNA recensione recen
 Regole: riporta solo ciò che trovi davvero nelle fonti, niente punteggi inventati o a memoria. Se per questa annata non trovi nulla, scrivilo chiaramente. Se usi un'altra annata, dillo. Se una fonte non è raggiungibile (Instagram e Vivino spesso lo sono poco), dillo invece di supporre. Non usare Markdown.`;
 }
 
-const INFO_RULES = `Scrivi in italiano. Non inventare: niente punteggi, premi, date o dati che non conosci con buona certezza; usa stringa vuota o null per ciò che non sai. Se non conosci questo vino in particolare, scrivi informazioni generali su tipo, zona e uve e inizia quel testo con "Indicazione generica:".
+const infoRules = (ml) => `Scrivi in italiano. Non inventare: niente punteggi, premi, date o dati che non conosci con buona certezza; usa stringa vuota o null per ciò che non sai. Se non conosci questo vino in particolare, scrivi informazioni generali su tipo, zona e uve e inizia quel testo con "Indicazione generica:".
 Campi informativi:
 "producer_info": 3-5 frasi sul produttore (dove si trova, filosofia, stile, cosa lo rende noto);
 "wine_info": 3-5 frasi sulla cuvée e sulla bottiglia (uve, vinificazione, affinamento, profilo di degustazione);
@@ -181,16 +280,17 @@ Campi informativi:
 "drink_text": 1-2 frasi su quando berla, in base a tipo di vino, annata e parere comune di critici e guide: indica la finestra con anni, il picco e se è pronta adesso o da aspettare;
 "drink_from" e "drink_to": anni (numeri) di inizio e fine della finestra ideale, oppure null;
 "pairing": 3-4 abbinamenti migliori, in una frase breve;
-"price_eur": prezzo indicativo di mercato per una bottiglia da 75 cl in euro, oppure null se incerto.`;
+"price_eur": prezzo indicativo di mercato in euro per una bottiglia nel formato ${sizeName(ml || 750)}, oppure null se incerto.`;
 
 function scanPrompt() {
   return `Questa è la foto di una bottiglia o di un'etichetta di vino. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
-{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"label_box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null}
+{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"label_box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"size_ml":number|null}
+"size_ml" è la capacità della bottiglia in millilitri se scritta sull'etichetta o riconoscibile con certezza (es. 750, 375, 1500), altrimenti null.
 "box" è il rettangolo che contiene la bottiglia intera (o solo l'etichetta se la bottiglia non si vede), in frazioni di larghezza e altezza dell'immagine. "label_box" è il rettangolo stretto della sola etichetta frontale principale (senza collo, capsula o sfondo), nello stesso formato; null se l'etichetta non si vede. "quality" è "scarsa" se la foto è sfocata, buia, tagliata o l'etichetta è poco leggibile. "barcode" contiene solo le cifre del codice a barre, se leggibili. Per produttore, cuvée, annata, zona e codice usa null se non li leggi con certezza.
-${INFO_RULES}`;
+${infoRules(750)}`;
 }
 function deepPrompt(b) {
-  return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}. Siamo nel ${new Date().getFullYear()}.
+  return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}, formato ${sizeName(b.size || 750)}. Siamo nel ${new Date().getFullYear()}.
 Consulta il sito del produttore, guide e riviste, Wine-Searcher, Vivino, CellarTracker, enoteche e case d'asta.
 Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
 {"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"production":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
@@ -198,7 +298,7 @@ Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
 - wine_info: uve e percentuali, vigneto (suolo, altitudine, esposizione), vinificazione, affinamento (contenitori e mesi), gradazione alcolica, stile e profilo di degustazione, 5-8 frasi.
 - production: numero di bottiglie prodotte per questa annata (o la produzione media annua) e resa, solo se lo trovi in una fonte; altrimenti "Dato non reperito".
 - vintage_info: andamento climatico dell'annata nella zona e giudizio generale, con eventuali punteggi di critici con la fonte.
-- price_eur: prezzo medio di mercato attuale in euro per una bottiglia da 0,75 litri di QUESTA annata, preso da Wine-Searcher, aste o enoteche. Non stimarlo a memoria: se non trovi un prezzo per questa annata usa null.
+- price_eur: prezzo medio di mercato attuale in euro per UNA bottiglia nel formato ${sizeName(b.size || 750)} di QUESTA annata (se trovi solo il prezzo da 75 cl e il formato è diverso, rapportalo e dillo in price_note), preso da Wine-Searcher, aste o enoteche. Non stimarlo a memoria: se non trovi un prezzo per questa annata usa null.
 - price_note: fonte e fascia di prezzo trovate, per esempio "Wine-Searcher: 85-120 €, media 98 €".
 Regole: scrivi in italiano. Riporta solo ciò che trovi nelle fonti; per ogni dato che non trovi scrivi "Dato non reperito" invece di inventare. Cita la fonte tra parentesi per i numeri importanti. Se non conosci questo vino in particolare, dillo e inizia il testo con "Indicazione generica:".`;
 }
@@ -206,17 +306,17 @@ async function deepInfo(b) {
   let limited = false;
   try {
     const r = await aiSearch(deepPrompt(b));
-    const a = r.text.indexOf('{'), z = r.text.lastIndexOf('}');
-    if (a >= 0 && z > a) { try { return { j: JSON.parse(r.text.slice(a, z + 1)), links: r.links, deep: true }; } catch (_) {} }
-  } catch (e) { if (/api key|network|fetch|load failed/i.test(e.message)) throw e; limited = /quota|429|exhausted|rate/i.test(e.message); }
+    const j = parseJsonLoose(r.text);
+    if (j) return { j, links: r.links, deep: true };
+  } catch (e) { if (/api key|api_key|permission|failed to fetch|network|load failed/i.test(e.message)) throw e; limited = !!e.quota || /quota|429|exhausted|rate/i.test(e.message); }
   const j = await aiJson(enrichPrompt(b));
   if (j) j.price_eur = null;
   return { j, links: [], deep: false, limited };
 }
 function enrichPrompt(b) {
-  return `Bottiglia di vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}, tipo ${b.type}, zona ${b.region || 'non indicata'}. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
+  return `Bottiglia di vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}, tipo ${b.type}, formato ${sizeName(b.size || 750)}, zona ${b.region || 'non indicata'}. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
 {"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null}
-${INFO_RULES}`;
+${infoRules(b.size)}`;
 }
 
 /* ===== Calendario biodinamico (dal tuo file) ===== */
@@ -244,10 +344,9 @@ function dial(){const now=new Date(),b0=new Date();b0.setDate(b0.getDate()+dayOf
   return `<div class="dialwrap" style="touch-action:pan-y"><svg viewBox="0 0 240 240" style="width:100%;max-width:260px;display:block;margin:0 auto" role="img" aria-label="Quadrante del giorno">${s}</svg></div><div class="info" style="text-align:center;margin:6px 0">${leg}</div>`}
 function dayStart(o){const b=new Date();b.setDate(b.getDate()+o);return new Date(b.getFullYear(),b.getMonth(),b.getDate()).getTime()}
 function dayFrac(d0){let g=0;for(let m=0;m<1440;m+=10)if(isGood(kind(d0+(m+5)*60000)))g++;return g/144}
-function nav(){let chips='';for(let o=0;o<14;o++){const d0=dayStart(o),f=dayFrac(d0),col=f>=.6?'#4C9A6A':f>0?'#D9A441':'#B85C5C',dt=new Date(d0);
-    chips+=`<button class="chip${o===dayOff?' on':''}" data-a="day" data-o="${o}"><span>${dt.toLocaleDateString('it-IT',{weekday:'short'})}</span><b>${dt.getDate()}</b><i style="background:${col}"></i></button>`}
-  const lab=dayOff===0?'Oggi':new Date(dayStart(dayOff)).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long'});
-  return `<div class="dnav"><button class="link" data-a="day" data-d="-1">‹</button><b>${lab}</b><button class="link" data-a="day" data-d="1">›</button></div><div class="strip">${chips}</div><p class="info" style="margin:2px 0 6px">Verde: giorno buono. Giallo: buono solo in certi orari. Rosso: da evitare. Scorri il quadrante di lato per cambiare giorno.</p>`}
+function nav(){const dt=new Date(dayStart(dayOff)),y=dt.getFullYear()!==new Date().getFullYear();
+  const lab=dayOff===0?'Oggi':dayOff===1?'Domani':dayOff===-1?'Ieri':dt.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:y?'numeric':undefined});
+  return `<div class="dnav"><button class="link" data-a="day" data-d="-1" aria-label="Giorno precedente">‹</button><b>${lab}</b><button class="link" data-a="day" data-d="1" aria-label="Giorno successivo">›</button></div><p class="info" style="margin:2px 0 6px;text-align:center">Scorri il quadrante di lato per cambiare giorno.</p>`}
 function other(){const d0=dayStart(dayOff),segs=[];for(let m=0;m<1440;m+=10){const t=kind(d0+(m+5)*60000)[2],l=segs[segs.length-1];if(l&&l.t===t)l.to=(m+10)/60;else segs.push({t,from:m/60,to:(m+10)/60})}
   const good=segs.filter(g=>g.t==='frutto'||g.t==='fiore'),hrs=good.reduce((a,g)=>a+g.to-g.from,0),f=h=>{const mm=Math.round(h*60);return String(Math.floor(mm/60)).padStart(2,'0')+':'+String(mm%60).padStart(2,'0')};
   const win=[];good.forEach(g=>{const l=win[win.length-1];if(l&&Math.abs(l[1]-g.from)<.01)l[1]=g.to;else win.push([g.from,g.to])});
@@ -363,7 +462,7 @@ function cantina() {
       const b = pm[s.id + '|' + r + '|' + c];
       const has = b && imgSrc(b);
       const lbl = b ? `<span class="lbl"><b>${esc(b.producer || name(b))}</b>${b.producer && b.cuvee ? `<i>${esc(b.cuvee)}</i>` : ''}</span>` : '';
-      cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
+      cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
     }
     return `<section class="shelf"><header><h2>${esc(s.name)}</h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
   }).join('');
@@ -374,15 +473,15 @@ function cantina() {
 }
 
 const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-let flt = { view: 'in', type: '', stat: '', region: '', vint: '', sort: 'az' };
+let flt = { view: 'in', type: '', stat: '', region: '', vint: '', size: '', sort: 'az' };
 function lista(all) {
   const drunkView = flt.view === 'drunk';
   const pool = all.filter((b) => !!b.drunk === drunkView);
   const words = nrm(q).split(/\s+/).filter(Boolean);
   const key = (b) => nrm(b.producer || b.cuvee || '').replace(/^[^a-z0-9]+/, '');
   const f = pool
-    .filter((b) => { const h = nrm([name(b), b.region, b.vintage, b.type, posText(b)].join(' ')); return words.every((w) => h.includes(w)); })
-    .filter((b) => (!flt.type || b.type === flt.type) && (!flt.stat || status(b) === flt.stat) && (!flt.region || (b.region || '') === flt.region) && (!flt.vint || String(b.vintage || '') === flt.vint));
+    .filter((b) => { const h = nrm([name(b), b.region, b.vintage, b.type, posText(b), isStd(b) ? '' : sizeName(sizeMl(b))].join(' ')); return words.every((w) => h.includes(w)); })
+    .filter((b) => (!flt.type || b.type === flt.type) && (!flt.stat || status(b) === flt.stat) && (!flt.region || (b.region || '') === flt.region) && (!flt.vint || String(b.vintage || '') === flt.vint) && (!flt.size || String(sizeMl(b)) === flt.size));
   const az = (a, b) => (key(a) || '~').localeCompare(key(b) || '~', 'it') || (a.vintage || 0) - (b.vintage || 0);
   const sortMode = flt.sort === 'az' && drunkView ? 'date' : flt.sort;
   if (sortMode === 'az') f.sort(az);
@@ -400,7 +499,7 @@ function lista(all) {
     if (showLetters) { const l = letter(b); if (l !== last) { rows += `<h3 class="letter" id="az-${l === '#' ? 'x' : l}">${l}</h3>`; last = l; } }
     const sub = drunkView
       ? `Bevuta il ${new Date(b.drunk.date).toLocaleDateString('it-IT')}${b.drunk.rating ? ' · ' + '★'.repeat(b.drunk.rating) : ''}${b.drunk.notes ? ' · ' + esc(b.drunk.notes.slice(0, 50)) : ''}`
-      : esc(posText(b)) + (st[status(b)] || '');
+      : (isStd(b) ? '' : esc(sizeName(sizeMl(b))) + ' · ') + esc(posText(b)) + (st[status(b)] || '');
     rows += `<button class="row" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(b))} ${esc(b.vintage || '')}<small>${sub}</small></span></span><span>${drunkView ? '' : eur(b.value ?? b.price)}</span></button>`;
   });
   const uniq = (fn) => [...new Set(pool.map(fn).filter(Boolean))];
@@ -411,9 +510,10 @@ function lista(all) {
     <select data-flt="stat" aria-label="Stato"><option value="">Ogni stato</option>${!drunkView ? [['st-now', 'Pronte da bere'], ['st-wait', 'Da aspettare'], ['st-past', 'Oltre il picco']].map(([v, l]) => `<option value="${v}" ${flt.stat === v ? 'selected' : ''}>${l}</option>`).join('') : ''}</select>
     <select data-flt="region" aria-label="Zona">${opt(uniq((b) => b.region).sort((a, b) => a.localeCompare(b, 'it')), flt.region, 'Tutte le zone')}</select>
     <select data-flt="vint" aria-label="Annata">${opt(uniq((b) => b.vintage).sort(), flt.vint, 'Tutte le annate')}</select>
+    ${(() => { const ss = [...new Set(pool.map(sizeMl))].sort((a, b) => a - b); return ss.length > 1 || flt.size ? `<select data-flt="size" aria-label="Formato" class="wide"><option value="">Tutti i formati</option>${ss.map((v) => `<option value="${v}" ${String(v) === flt.size ? 'selected' : ''}>${esc(sizeName(v))}</option>`).join('')}</select>` : ''; })()}
     <select data-flt="sort" aria-label="Ordine" class="wide"><option value="az" ${flt.sort === 'az' ? 'selected' : ''}>${drunkView ? 'Più recenti prima' : 'Ordine alfabetico'}</option><option value="value" ${flt.sort === 'value' ? 'selected' : ''}>Valore più alto</option><option value="vint" ${flt.sort === 'vint' ? 'selected' : ''}>Annata più vecchia</option>${!drunkView ? `<option value="drink" ${flt.sort === 'drink' ? 'selected' : ''}>Da bere prima</option>` : ''}</select>
   </div>`;
-  const any = flt.type || flt.stat || flt.region || flt.vint || q;
+  const any = flt.type || flt.stat || flt.region || flt.vint || flt.size || q;
   return keyBanner() + `<div class="seg"><button data-a="view" data-v="in" aria-pressed="${!drunkView}">In cantina (${nIn})</button><button data-a="view" data-v="drunk" aria-pressed="${drunkView}">Bevute (${nDr})</button></div><div class="azbar"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona" value="${esc(q)}">${jump}</div>${filters}<p class="info">${f.length} ${f.length === 1 ? 'bottiglia' : 'bottiglie'}${any ? ' trovate' : ''}${any ? ' <button class="link" data-a="clearflt">Azzera filtri</button>' : ''}</p>` + (f.length ? rows
     : `<p class="empty">Nessuna bottiglia${any ? ' trovata' : drunkView ? ' bevuta ancora' : ' ancora: tocca +'}.</p>`) + (!drunkView && nIn ? '<div class="acts"><button class="btn" data-a="pdf">Esporta inventario in PDF</button></div><p class="info" id="pdfmsg"></p>' : '');
 }
@@ -515,6 +615,7 @@ async function openBottle(id, pre) {
   const old = id ? S.bottles[id] : null;
   const b = old ? { ...old } : { id: gid(), type: 'rosso', shelf: null, r: 0, c: 0, ...pre };
   let photo = null, photoFull = null, labelThumb = false, thumb = b.thumb || null, useFull = !!b.useFull;
+  let aiAt = b.aiAt || null, aiDeep = !!b.aiDeep;
   let onlineLabel = false, valueNote = b.valueNote || '', srcLinks = b.srcLinks || [], busy = false, again = false, autoVal = !!b.valueAuto, dFrom = b.drinkFrom || null, dTo = b.drinkTo || null, picUrl = null, orig = null;
   if (id) {
     try { photo = (await dbGet('photos', id + ':c')) || null; photoFull = (await dbGet('photos', id + ':f')) || null; } catch (_) {}
@@ -543,6 +644,8 @@ async function openBottle(id, pre) {
   <label>Cuvée o etichetta</label><input id="f_cuvee" value="${esc(b.cuvee)}">
   <div class="two"><div><label>Annata</label><input id="f_vintage" inputmode="numeric" value="${esc(b.vintage)}"></div>
   <div><label>Tipo</label><select id="f_type">${['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].map((t) => `<option ${b.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
+  <label>Formato</label><select id="f_size">${(() => { const ml = sizeMl(b), known = SIZES.some((x) => x[0] === ml); return SIZES.map((x) => `<option value="${x[0]}" ${x[0] === ml ? 'selected' : ''}>${x[1] ? esc(x[1]) + ' · ' : ''}${x[2]}</option>`).join('') + `<option value="other" ${known ? '' : 'selected'}>Altro formato…</option>`; })()}</select>
+  <div id="f_sizeow" ${SIZES.some((x) => x[0] === sizeMl(b)) ? 'hidden' : ''}><label>Capacità in centilitri</label><input id="f_sizeo" inputmode="decimal" placeholder="es. 25" value="${SIZES.some((x) => x[0] === sizeMl(b)) ? '' : esc(String(sizeMl(b) / 10).replace('.', ','))}"></div>
   <label>Zona o denominazione</label><input id="f_region" value="${esc(b.region)}">
   <div class="two"><div><label>Prezzo d'acquisto (€)</label><input id="f_price" inputmode="decimal" value="${esc(b.price)}"></div>
   <div><label>Valore di mercato (€)</label><input id="f_value" inputmode="decimal" value="${esc(b.value)}"></div></div>
@@ -562,6 +665,20 @@ async function openBottle(id, pre) {
 
   const g = (k) => $('#f_' + k).value.trim();
   const scs = (t) => { const el = $('#scs'); el.textContent = t; if (t) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  const sizeOf = () => {
+    const v = $('#f_size').value;
+    if (v !== 'other') return +v;
+    const cl = num($('#f_sizeo').value);
+    return cl && cl > 0 ? Math.round(cl * 10) : 750;
+  };
+  let sizeTouched = !!id && !!b.size;
+  $('#f_size').addEventListener('change', () => { sizeTouched = true; $('#f_sizeow').hidden = $('#f_size').value !== 'other'; if ($('#f_size').value === 'other') $('#f_sizeo').focus(); });
+  const setSize = (ml) => {
+    ml = Math.round(Number(ml));
+    if (!(ml > 0) || sizeTouched) return;
+    if (SIZES.some((x) => x[0] === ml)) { $('#f_size').value = String(ml); $('#f_sizeow').hidden = true; }
+    else if (ml >= 50 && ml <= 30000) { $('#f_size').value = 'other'; $('#f_sizeow').hidden = false; $('#f_sizeo').value = String(ml / 10).replace('.', ','); }
+  };
   const touched = new Set(b.touched || []);
   let typeTouched = !!id;
   $('#f_type').addEventListener('change', () => { typeTouched = true; });
@@ -661,16 +778,18 @@ async function openBottle(id, pre) {
     if (!g('producer') && !g('cuvee')) { scs('Scrivi almeno il produttore o la cuvée.'); return; }
     busy = true;
     scs('Cerco informazioni approfondite online… può volerci fino a un minuto.');
+    aiWaitNote = (s) => scs('Gemini chiede una pausa: riprovo da solo tra ' + s + ' secondi…');
     try {
-      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region') });
+      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf() });
       applyInfo(r.j);
+      aiAt = Date.now(); aiDeep = !!r.deep;
       if (r.links.length) { srcLinks = r.links; showSrc(); }
       const lab = await findLabel(true);
       scs((r.deep ? 'Fatto, con ricerca online: controlla le fonti in fondo e i dati importanti.' : (r.limited ? 'Limite gratuito della ricerca web raggiunto: ho usato solo le conoscenze dell\'IA, senza fonti e senza aggiornare il valore. Riprova più tardi con "Cerca dati ed etichetta".' : 'Fatto, ma senza ricerca online (non disponibile): sono stime dell\'IA, controllale.')) + lab);
     } catch (e) {
       scs('Ricerca non riuscita: ' + e.message);
       notice('Ricerca non riuscita', esc(errorHint(e.message)) + '<br><br><small>Dettaglio: ' + esc(e.message) + '</small>', [{ t: 'Chiudi', pri: true }]);
-    } finally { busy = false; if (again) { again = false; enrich(); } }
+    } finally { aiWaitNote = null; busy = false; if (again) { again = false; enrich(); } }
   };
   $('#enr').onclick = enrich;
   const showR = () => {
@@ -723,10 +842,13 @@ async function openBottle(id, pre) {
       return;
     }
     scs('Leggo l\'etichetta…');
+    aiWaitNote = (s) => scs('Gemini chiede una pausa: riprovo da solo tra ' + s + ' secondi…');
     try {
       const j = await aiJson(scanPrompt(), await toB64(file, 1600));
+      aiWaitNote = null;
       const set = (k, v) => { if (v !== null && v !== undefined && v !== '') $('#f_' + k).value = v; };
       set('producer', j.producer); set('cuvee', j.cuvee); set('vintage', j.vintage); set('region', j.region);
+      if (j.size_ml) setSize(j.size_ml);
       if (['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
       if (j.barcode && /^\d{8,14}$/.test(String(j.barcode))) b.barcode = String(j.barcode);
       applyInfo({ ...j, price_eur: null });
@@ -737,6 +859,7 @@ async function openBottle(id, pre) {
       if (g('producer') || g('cuvee')) { if (getCfg().autoDeep) await enrich(); else scs($('#scs').textContent + ' Per produzione, valore e fonti premi «Cerca dati ed etichetta».'); }
       scs($('#scs').textContent + poor);
     } catch (err) {
+      aiWaitNote = null;
       await setPhoto(file, null);
       scs('Lettura non riuscita: ' + err.message);
       notice('Lettura non riuscita', esc(errorHint(err.message)) + '<br><br><small>Dettaglio: ' + esc(err.message) + '</small>', [{ t: 'Impostazioni', fn: openSettings }, { t: 'Chiudi', pri: true }]);
@@ -746,7 +869,7 @@ async function openBottle(id, pre) {
   const build = () => {
     const p = g('pos'), [sh, r, c] = p ? p.split('|') : [null, 0, 0];
     return {
-      ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), region: g('region'),
+      ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
       price: num(g('price')), value: num(g('value')), valueAuto: autoVal && g('value') !== '',
       drink: g('drink'), drinkFrom: dFrom, drinkTo: dTo, pairing: g('pairing'),
       info: g('info'), winfo: g('winfo'), vinfo: g('vinfo'), prod: g('prod'), srcLinks, valueNote: autoVal && g('value') !== '' ? valueNote : '', touched: [...touched],
@@ -779,7 +902,7 @@ function openPlace(sh, r, c) {
   const un = Object.values(S.bottles).filter((b) => !b.shelf && !b.drunk);
   if (!un.length) return openBottle(null, { shelf: sh, r, c });
   const d = $('#dlg');
-  d.innerHTML = `<h2>Cosa metto qui?</h2><p class="info">Scegli una bottiglia da posizionare o aggiungine una nuova.</p>` + un.map((b) => `<button class="row" data-p="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : ''}<span>${esc(name(b))} ${esc(b.vintage || '')}</span></span></button>`).join('') + `<div class="acts"><button class="btn pri" id="pn">Nuova bottiglia</button><button class="btn" id="pc">Annulla</button></div>`;
+  d.innerHTML = `<h2>Cosa metto qui?</h2><p class="info">Scegli una bottiglia da posizionare o aggiungine una nuova.</p>` + un.map((b) => `<button class="row" data-p="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : ''}<span>${esc(name(b))} ${esc(b.vintage || '')}${isStd(b) ? '' : ' · ' + esc(sizeName(sizeMl(b)))}</span></span></button>`).join('') + `<div class="acts"><button class="btn pri" id="pn">Nuova bottiglia</button><button class="btn" id="pc">Annulla</button></div>`;
   d.querySelectorAll('[data-p]').forEach((x) => x.onclick = () => { persistBottle({ ...S.bottles[x.dataset.p], shelf: sh, r, c }); d.close(); });
   $('#pn').onclick = () => { d.close(); openBottle(null, { shelf: sh, r, c }); };
   $('#pc').onclick = () => d.close();
@@ -817,7 +940,7 @@ function openShelf(id) {
 /* ===== Impostazioni e backup ===== */
 async function enrichRecord(b0) {
   const b = { ...b0 };
-  const r = await deepInfo({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region });
+  const r = await deepInfo({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size });
   const j = r.j || {};
   const t = new Set(b.touched || []);
   const put = (k, f) => { if (typeof j[f] === 'string' && j[f].trim() && !t.has(k)) b[k] = j[f].trim(); };
@@ -833,6 +956,7 @@ async function enrichRecord(b0) {
     b.value = Math.round(p); b.valueAuto = true; b.valueNote = typeof j.price_note === 'string' ? j.price_note.trim() : '';
   }
   if (r.links.length) b.srcLinks = r.links;
+  b.aiAt = Date.now(); b.aiDeep = !!r.deep;
   if (!b.thumb) {
     const ob = await offByName(b.producer, b.cuvee);
     if (ob) {
@@ -844,31 +968,44 @@ async function enrichRecord(b0) {
   }
   return { b, deep: r.deep, limited: r.limited };
 }
-async function bulkEnrich() {
+// Una bottiglia è "incompleta" se l'IA non l'ha mai elaborata e le mancano le informazioni.
+const incomplete = (b) => (b.producer || b.cuvee) && !b.drunk && !b.aiAt && (!b.prod || !b.info);
+async function bulkEnrich(mode) {
   if (!aiReady()) { notice('Manca la chiave dell\'IA', 'Serve la chiave del servizio di IA, dalle Impostazioni.', [{ t: 'Apri le impostazioni', pri: true, fn: openSettings }, { t: 'Chiudi' }]); return; }
-  const todo = Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.prod);
-  if (!todo.length) { notice('Tutto completo', 'Tutte le bottiglie hanno già i dati di produzione.', [{ t: 'OK', pri: true }]); return; }
+  let todo = Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk);
+  if (mode === 'web') todo = todo.filter((b) => !b.aiDeep);
+  else if (mode !== 'all') todo = todo.filter(incomplete);
+  // prima quelle mai elaborate, poi le più vecchie
+  todo.sort((a, b) => (a.aiAt || 0) - (b.aiAt || 0));
+  if (!todo.length) {
+    notice('Niente da aggiornare', mode === 'web' ? 'Tutte le bottiglie hanno già dati trovati con la ricerca web.' : 'Tutte le bottiglie sono già state completate. Per rifarle tutte usa «Aggiorna tutte le bottiglie».', [{ t: 'OK', pri: true }]);
+    return;
+  }
   const d = $('#dlg2');
   let stop = false;
-  d.innerHTML = `<h2>Completo le bottiglie</h2><p id="bk_t" style="font-size:16px;margin:10px 0">Preparo…</p><div class="acts"><button class="btn" id="bk_x">Ferma</button></div>`;
+  d.innerHTML = `<h2>Aggiorno le bottiglie</h2><p id="bk_t" style="font-size:16px;margin:10px 0">Preparo…</p><p class="info" id="bk_w"></p><div class="acts"><button class="btn" id="bk_x">Ferma</button></div>`;
   $('#bk_x').onclick = () => { stop = true; $('#bk_x').textContent = 'Mi fermo dopo questa…'; };
   d.onclose = null;
   if (!d.open) d.showModal();
-  let ok = 0, note = '';
+  aiWaitNote = (s) => { const w = $('#bk_w'); if (w) w.textContent = 'Gemini chiede una pausa: riprendo da solo tra ' + s + ' secondi, non chiudere l\'app.'; };
+  let ok = 0, noWeb = 0, note = '';
   for (let i = 0; i < todo.length && !stop; i++) {
     const cur = S.bottles[todo[i].id];
     if (!cur) continue;
     $('#bk_t').textContent = (i + 1) + ' di ' + todo.length + ': ' + name(cur) + (cur.vintage ? ' ' + cur.vintage : '') + '…';
     try {
       const r = await enrichRecord(cur);
-      if (r.limited) { note = 'Il limite gratuito della ricerca web è finito: mi fermo qui. Riprova più tardi, ripartirò dalle bottiglie rimaste.'; break; }
-      await persistBottle(r.b);
+      await persistBottle(r.b); // salvo sempre, anche senza ricerca web
       ok++;
-    } catch (e) { note = 'Mi fermo: ' + errorHint(e.message) + ' (' + e.message + ')'; break; }
-    await new Promise((res) => setTimeout(res, 1200));
+      if (!r.deep) noWeb++;
+    } catch (e) { note = e.quota ? e.message + ' Premi di nuovo il pulsante più tardi: riparto dalle bottiglie rimaste.' : 'Mi fermo: ' + errorHint(e.message) + ' (' + e.message + ')'; break; }
+    const w = $('#bk_w'); if (w) w.textContent = '';
+    await sleep(1500);
   }
-  $('#bk_t').textContent = 'Completate ' + ok + ' bottiglie su ' + todo.length + '.' + (note ? ' ' + note : '') + ' Controlla le schede: sono dati trovati online dall\'IA.';
+  aiWaitNote = null;
+  $('#bk_t').textContent = 'Aggiornate ' + ok + ' bottiglie su ' + todo.length + '.' + (noWeb ? ' ' + noWeb + ' senza ricerca web (solo conoscenze dell\'IA, valore non cambiato): potrai rifarle con «Rifai quelle senza ricerca web».' : '') + (note ? ' ' + note : '') + ' Controlla le schede: sono dati trovati dall\'IA.';
   $('#bk_x').textContent = 'Chiudi'; $('#bk_x').onclick = () => d.close();
+  render();
 }
 function openSettings() {
   const c = getCfg();
@@ -881,14 +1018,15 @@ function openSettings() {
   <select id="c_prov"><option value="gemini" ${c.provider === 'gemini' ? 'selected' : ''}>Google Gemini</option><option value="anthropic" ${c.provider === 'anthropic' ? 'selected' : ''}>Anthropic Claude (a consumo)</option></select>
   <div id="c_gem"><label>Chiave Gemini</label><input id="c_gk" type="password" autocomplete="off" value="${esc(c.geminiKey)}"><label>Modello Gemini</label><input id="c_gm" value="${esc(c.geminiModel)}"></div>
   <div id="c_ant"><label>Chiave Anthropic</label><input id="c_ak" type="password" autocomplete="off" value="${esc(c.anthropicKey)}"><label>Modello Anthropic</label><input id="c_am" value="${esc(c.anthropicModel)}"></div>
-  <p class="info">Gemini gratuito: pochi usi al giorno, senza ricerca web con fonti, e Google può usare i dati inviati per migliorare i suoi prodotti. Gemini con fatturazione attiva o Anthropic: nessun limite giornaliero stretto, si paga solo ciò che usi.</p>
+  <p class="info">Gemini gratuito ha un limite giornaliero per ogni modello: quando uno finisce, l'app passa da sola ai modelli di riserva (${GEM_MODELS.map(esc).join(', ')}), e se Google chiede una pausa di qualche secondo aspetta e riprova. I limiti si azzerano ogni giorno verso le 9 del mattino. Google può usare i dati inviati gratis per migliorare i suoi prodotti. Gemini con fatturazione attiva o Anthropic: nessun limite stretto, si paga solo ciò che usi.</p>
+  <p class="info" id="c_gx"></p>
   <label class="chk"><input type="checkbox" id="c_auto" ${c.autoDeep ? 'checked' : ''}> Ricerca approfondita automatica</label>
   <p class="info">Acceso: dopo ogni scansione e quando scrivi il nome, l'app cerca da sola produzione, valore e fonti (usa più richieste, il limite gratuito finisce prima). Spento: lo fa solo quando premi «Cerca dati ed etichetta». La ricerca dell'etichetta online resta sempre automatica.</p>
   <div class="acts"><button class="btn pri" id="c_save">Salva</button><button class="btn" id="c_test">Prova la connessione</button></div>
   <p class="info" id="c_msg"></p>
-  <h3 style="margin:16px 0 4px;font-size:16px">Completa le bottiglie</h3>
-  <p class="info">Cerca online produzione, informazioni, valore di mercato ed etichetta per le bottiglie già inserite che non hanno ancora i dati di produzione. I campi che hai scritto tu e i valori che hai inserito non vengono toccati.</p>
-  <div class="acts"><button class="btn" id="b_bulk">Completa tutte le bottiglie</button></div>
+  <h3 style="margin:16px 0 4px;font-size:16px">Aggiorna le bottiglie già inserite</h3>
+  <p class="info">Cerca con l'IA informazioni, produzione, quando berla, valore di mercato ed etichetta. I campi che hai scritto tu e i valori inseriti a mano non vengono toccati. Ogni bottiglia viene salvata appena pronta: se il limite gratuito finisce, la volta dopo riparte da quelle rimaste.</p>
+  <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${Object.values(S.bottles).filter(incomplete).length})</button><button class="btn" id="b_web">Rifai quelle senza ricerca web (${Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
   <h3 style="margin:16px 0 4px;font-size:16px">Backup</h3>
   <p class="info">Un file con tutte le bottiglie, gli scaffali e le foto. Fanne uno ogni tanto e conservalo (iCloud Drive, Mail).</p>
   <div class="acts"><button class="btn" id="b_exp">Esporta backup</button><label class="btn">Importa backup<input type="file" accept="application/json,.json" hidden id="b_imp"></label></div>
@@ -910,7 +1048,15 @@ function openSettings() {
     catch (e) { $('#c_msg').textContent = 'Non funziona: ' + e.message + ' ' + errorHint(e.message); }
   };
   $('#c_close').onclick = () => d.close();
-  $('#b_bulk').onclick = bulkEnrich;
+  $('#b_bulk').onclick = () => bulkEnrich('incomplete');
+  $('#b_web').onclick = () => bulkEnrich('web');
+  $('#b_all').onclick = () => notice('Aggiornare tutte le bottiglie?', 'Rifaccio la ricerca per tutte le bottiglie in cantina (' + Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk).length + '). Con Gemini gratuito può servire più di un giorno: riparte sempre da quelle aggiornate da più tempo.', [{ t: 'Aggiorna tutte', pri: true, fn: () => bulkEnrich('all') }, { t: 'Annulla' }]);
+  const showGx = () => {
+    const x = gemx(), ks = Object.keys(x).filter((k) => x[k] - Date.now() > 300000);
+    $('#c_gx').innerHTML = ks.length ? 'Esauriti per oggi: ' + ks.map((k) => esc(k.replace('|s', ' (ricerca web)'))).join(', ') + '. Si azzerano ' + esc(resetTime()) + '. <button class="link" id="c_gxr" type="button">Riprova comunque</button>' : '';
+    if ($('#c_gxr')) $('#c_gxr').onclick = () => { gemxClear(); showGx(); };
+  };
+  showGx();
   $('#b_exp').onclick = exportBackup;
   $('#b_imp').onchange = importBackup;
   d.onclose = null;
@@ -967,16 +1113,21 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-a]');
   if (!t) return;
   const a = t.dataset.a;
-  if (a === 'tab') { tab = t.dataset.t; render(); }
+  if (a === 'tab') { tab = t.dataset.t; if (tab === 'luna') { calMode = 'month'; syncCal(); } render(); }
   else if (a === 'new') openBottle(null, {});
   else if (a === 'newShelf') openShelf(null);
   else if (a === 'settings') openSettings();
-  else if (a === 'day') { dayOff = Math.max(-7, Math.min(60, t.dataset.o !== undefined ? +t.dataset.o : dayOff + (+t.dataset.d))); render(); }
+  else if (a === 'day') { dayOff = t.dataset.o !== undefined ? +t.dataset.o : dayOff + (+t.dataset.d); syncCal(); render(); }
+  else if (a === 'calday') { if (Date.now() - swallowClick < 400) return; dayOff = +t.dataset.o; render(); }
+  else if (a === 'cal') calShift(+t.dataset.d);
+  else if (a === 'calyear') { calMode = 'year'; render(); }
+  else if (a === 'calmonth') { calMode = 'month'; calM = +t.dataset.m; render(); }
+  else if (a === 'caltoday') { dayOff = 0; calMode = 'month'; syncCal(); render(); }
   else if (a === 'editShelf') openShelf(t.dataset.id);
   else if (a === 'open') openBottle(t.dataset.id);
   else if (a === 'jump') { const el = document.getElementById('az-' + (t.dataset.l === '#' ? 'x' : t.dataset.l)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   else if (a === 'view') { flt.view = t.dataset.v; flt.stat = ''; if (flt.view === 'drunk' && flt.sort === 'drink') flt.sort = 'az'; render(); }
-  else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '' }; q = ''; render(); }
+  else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '' }; q = ''; render(); }
   else if (a === 'pdf') exportPdf();
   else if (a === 'pair') pairNow();
   else if (a === 'mreg') pickRegion(+t.dataset.i, true);
@@ -999,6 +1150,11 @@ document.addEventListener('click', (e) => {
 document.addEventListener('change', (e) => {
   const k = e.target && e.target.dataset && e.target.dataset.flt;
   if (k) { flt[k] = e.target.value; render(); }
+  else if (e.target.id === 'caljump' && e.target.value) {
+    const [y, m, d] = e.target.value.split('-').map(Number);
+    dayOff = offOf(y, m - 1, d); calMode = 'month'; syncCal(); render();
+    const el = $('#lunaday'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 });
 document.addEventListener('input', (e) => {
   if (e.target.id === 'q') { q = e.target.value; const p = e.target.selectionStart; render(); const i = $('#q'); i.focus(); i.setSelectionRange(p, p); }

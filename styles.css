@@ -109,3 +109,43 @@ nav button{padding:9px 2px;font-size:13px;min-width:0}
 .row.pick{display:block}
 .why{display:block;margin-top:6px;font-size:14px;line-height:1.35}
 .row .th:empty{display:block}
+
+/* --- formato bottiglia --- */
+.dot .fmt{position:absolute;left:-4px;top:-4px;background:#F3E7D6;color:#2A1C12;border-radius:8px;padding:1px 5px;font-size:9px;font-weight:700;line-height:1.3;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+
+/* --- calendario lunare a mese e anno --- */
+.cal{background:var(--sf);border:1px solid var(--line);border-radius:12px;padding:10px 12px 12px;margin:8px 0;touch-action:pan-y}
+.calbar{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:34px}
+.calbar>.link{color:var(--wine);border:0;background:none;padding:4px 0;font-size:16px}
+.calbar-r{display:flex;align-items:center;gap:8px}
+.caljump{position:relative;font-size:14px;color:var(--wine);border:1px solid var(--line);border-radius:10px;padding:6px 10px;cursor:pointer;overflow:hidden}
+.caljump input{position:absolute;inset:0;opacity:0;margin:0;padding:0;width:100%;height:100%;cursor:pointer;border:0}
+.calhead{display:flex;justify-content:space-between;align-items:center;margin:6px 0 8px}
+.calhead h2{font-size:26px}.calhead h2 small{font-size:20px;color:var(--mute);font-weight:400}
+.calhead .link{font-size:20px;padding:2px 14px;margin-left:6px}
+.wd,.mgrid{display:grid;grid-template-columns:repeat(7,1fr);text-align:center}
+.wd{font-size:12px;color:var(--mute);margin-bottom:4px}
+.mgrid{row-gap:4px}
+.cd{position:relative;background:none;border:0;padding:4px 0 6px;display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;color:var(--ink)}
+.cd b{font-weight:500;font-size:17px;width:34px;height:34px;line-height:34px;border-radius:50%}
+.cd i{width:8px;height:8px;border-radius:50%}
+.cd.t b{color:var(--wine);font-weight:700}
+.cd.s b{background:var(--ink);color:var(--bg)}
+.cd.t.s b{background:var(--wine);color:#fff}
+.ph{position:absolute;top:2px;right:calc(50% - 22px);width:9px;height:9px;border-radius:50%;display:inline-block}
+.ph.full{background:#F2E6B8;border:1px solid #B9A35A}
+.ph.new{background:#2A2F2C;border:1px solid #2A2F2C}
+.calleg{display:flex;flex-wrap:wrap;gap:4px 12px;margin:10px 0 4px}
+.calleg span{display:inline-flex;align-items:center;gap:5px}
+.calleg i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.calleg .ph{position:static}
+.yg{display:grid;grid-template-columns:repeat(3,1fr);gap:14px 12px}
+.ym{background:none;border:0;padding:0;text-align:left;cursor:pointer;color:var(--ink)}
+.ym b{display:block;font-size:15px;margin-bottom:4px}
+.ym.cur b{color:var(--wine)}
+.mg{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.mg i{display:block;aspect-ratio:1;border-radius:50%;opacity:.85}
+.mg i.t{outline:2px solid var(--wine);outline-offset:1px;opacity:1}
+#lunaday{scroll-margin-top:12px}
+.cd .ph{top:3px;right:auto;left:calc(50% + 12px)}
+.ym{display:flex;flex-direction:column;justify-content:flex-start;align-self:start}

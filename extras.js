@@ -5,7 +5,73 @@ function moonChip() {
   const c = kind(Date.now()), good = isGood(c);
   return `<button class="moonchip ${good ? 'good' : 'bad'}" data-a="tab" data-t="luna">Luna: giorno ${c[2]} · ${good ? 'buon giorno per bere' : 'meglio aspettare'} ›</button>`;
 }
-function luna() { return today(); }
+/* Calendario a mese e anno, sfogliabile come il calendario dell'iPhone. */
+let calY = null, calM = null, calMode = 'month';
+const MESI = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
+const qCache = new Map();
+function syncCal() { const d = new Date(dayStart(dayOff)); calY = d.getFullYear(); calM = d.getMonth(); }
+function offOf(y, m, d) { return Math.round((new Date(y, m, d).getTime() - dayStart(0)) / 86400000); }
+// Quota della giornata favorevole (frutto o fiore), campionata ogni 20 minuti.
+function dayQ(y, m, d) {
+  const k = y + '-' + m + '-' + d;
+  if (qCache.has(k)) return qCache.get(k);
+  const t0 = new Date(y, m, d).getTime(); let g = 0;
+  for (let i = 0; i < 72; i++) if (isGood(kind(t0 + (i * 20 + 10) * 60000))) g++;
+  const f = g / 72;
+  if (qCache.size > 6000) qCache.clear();
+  qCache.set(k, f);
+  return f;
+}
+const qCol = (f) => (f >= 0.6 ? '#4C9A6A' : f > 0 ? '#D9A441' : '#B85C5C');
+// Fasi lunari: differenza tra la longitudine della Luna e quella del Sole.
+function sunLon(t) { const T = (t / 86400000 + 2440587.5 - 2451545) / 36525, r = Math.PI / 180, M = 357.52911 + 35999.05029 * T; return ((280.46646 + 36000.76983 * T + 1.914602 * Math.sin(M * r) + 0.019993 * Math.sin(2 * M * r)) % 360 + 360) % 360; }
+const elong = (t) => ((moonLon(t) - sunLon(t)) % 360 + 360) % 360;
+function phaseOf(y, m, d) {
+  const a = elong(new Date(y, m, d).getTime()), b = elong(new Date(y, m, d + 1).getTime());
+  if (b < a) return 'new';               // passa per 0°: luna nuova
+  if (a < 180 && b >= 180) return 'full'; // passa per 180°: luna piena
+  return '';
+}
+function calShift(n) {
+  if (calY === null) syncCal();
+  if (calMode === 'year') calY += n;
+  else { calM += n; while (calM < 0) { calM += 12; calY--; } while (calM > 11) { calM -= 12; calY++; } }
+  render();
+}
+function monthGrid(y, m, mini) {
+  const first = (new Date(y, m, 1).getDay() + 6) % 7, n = new Date(y, m + 1, 0).getDate();
+  const t = new Date(), sel = new Date(dayStart(dayOff));
+  let h = '';
+  for (let i = 0; i < first; i++) h += '<span></span>';
+  for (let d = 1; d <= n; d++) {
+    const f = dayQ(y, m, d), isT = t.getFullYear() === y && t.getMonth() === m && t.getDate() === d;
+    if (mini) { h += `<i class="${isT ? 't' : ''}" style="background:${qCol(f)}"></i>`; continue; }
+    const isS = sel.getFullYear() === y && sel.getMonth() === m && sel.getDate() === d, ph = phaseOf(y, m, d);
+    const lab = new Date(y, m, d).toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' }) + ': ' + (f >= 0.6 ? 'giorno buono' : f > 0 ? 'buono solo in certi orari' : 'da evitare') + (ph === 'full' ? ', luna piena' : ph === 'new' ? ', luna nuova' : '');
+    h += `<button class="cd${isT ? ' t' : ''}${isS ? ' s' : ''}" data-a="calday" data-o="${offOf(y, m, d)}" aria-label="${lab}"><b>${d}</b><i style="background:${qCol(f)}"></i>${ph ? `<em class="ph ${ph}"></em>` : ''}</button>`;
+  }
+  return h;
+}
+function calendar() {
+  if (calY === null) syncCal();
+  const now = new Date(), onToday = calY === now.getFullYear() && (calMode === 'year' || calM === now.getMonth()) && dayOff === 0;
+  const jump = `<label class="caljump">Vai a…<input type="date" id="caljump" value="${new Date(dayStart(dayOff)).toLocaleDateString('sv-SE')}"></label>`;
+  const tbtn = onToday ? '' : '<button class="link" data-a="caltoday">Oggi</button>';
+  if (calMode === 'year') {
+    let ms = '';
+    for (let m = 0; m < 12; m++) ms += `<button class="ym${calY === now.getFullYear() && m === now.getMonth() ? ' cur' : ''}" data-a="calmonth" data-m="${m}"><b>${MESI[m].slice(0, 3)}</b><span class="mg">${monthGrid(calY, m, true)}</span></button>`;
+    return `<div class="cal calwrap"><div class="calbar"><span></span><span class="calbar-r">${tbtn}${jump}</span></div>
+      <div class="calhead"><h2>${calY}</h2><span><button class="link" data-a="cal" data-d="-1" aria-label="Anno precedente">‹</button><button class="link" data-a="cal" data-d="1" aria-label="Anno successivo">›</button></span></div>
+      <div class="yg">${ms}</div><p class="info" style="margin:8px 0 0">Tocca un mese per aprirlo. Scorri di lato per cambiare anno.</p></div>`;
+  }
+  return `<div class="cal calwrap"><div class="calbar"><button class="link" data-a="calyear">‹ ${calY}</button><span class="calbar-r">${tbtn}${jump}</span></div>
+    <div class="calhead"><h2>${MESI[calM]} <small>${calY}</small></h2><span><button class="link" data-a="cal" data-d="-1" aria-label="Mese precedente">‹</button><button class="link" data-a="cal" data-d="1" aria-label="Mese successivo">›</button></span></div>
+    <div class="wd">${['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div>
+    <div class="mgrid">${monthGrid(calY, calM, false)}</div>
+    <p class="info calleg"><span><i style="background:#4C9A6A"></i>buono</span><span><i style="background:#D9A441"></i>solo certi orari</span><span><i style="background:#B85C5C"></i>da evitare</span><span><em class="ph full"></em>luna piena</span><span><em class="ph new"></em>luna nuova</span></p>
+    <p class="info" style="margin:0">Scorri il calendario di lato per cambiare mese. Tocca un giorno per vedere gli orari.</p></div>`;
+}
+function luna() { return calendar() + '<div id="lunaday">' + today() + '</div>'; }
 
 /* ===== Ho bevuto ===== */
 function drinkDialog(nb, cb) {
@@ -44,7 +110,7 @@ function stasera() {
 
 function pairCard(b, reason) {
   const st = { 'st-now': 'Pronta da bere', 'st-wait': 'Da aspettare', 'st-past': 'Oltre il picco' }[status(b)] || '';
-  return `<button class="row pick" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span><b>${esc(name(b))} ${esc(b.vintage || '')}</b><small>${esc(posText(b))}${st ? ' · ' + st : ''}</small>${reason ? `<span class="why">${esc(reason)}</span>` : ''}</span></span></button>`;
+  return `<button class="row pick" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span><b>${esc(name(b))} ${esc(b.vintage || '')}</b><small>${isStd(b) ? '' : esc(sizeName(sizeMl(b))) + ' · '}${esc(posText(b))}${st ? ' · ' + st : ''}</small>${reason ? `<span class="why">${esc(reason)}</span>` : ''}</span></span></button>`;
 }
 
 function localPairScore(b, dish) {
@@ -77,7 +143,7 @@ async function pairNow() {
     out.innerHTML = '<p class="info">Sto scegliendo…</p>';
     try {
       const lab = { 'st-now': 'pronta da bere', 'st-wait': 'da aspettare', 'st-past': 'oltre il picco' };
-      const list = cands.map((b) => ({ id: b.id, nome: name(b), annata: b.vintage || null, tipo: b.type, zona: b.region || '', stato: lab[status(b)] || '', abbinamenti: (b.pairing || '').slice(0, 140), note: (b.winfo || '').slice(0, 120) }));
+      const list = cands.map((b) => ({ id: b.id, nome: name(b), annata: b.vintage || null, tipo: b.type, formato: sizeName(sizeMl(b)), zona: b.region || '', stato: lab[status(b)] || '', abbinamenti: (b.pairing || '').slice(0, 140), note: (b.winfo || '').slice(0, 120) }));
       const j = await aiJson(`Sei un sommelier. Devo mangiare questo: "${dishText.trim()}". Oggi la Luna è in ${c[1]} (giorno ${c[2]}, ${good ? 'favorevole' : 'poco favorevole'} per bere secondo il calendario biodinamico: puoi citarlo in una frase al massimo, senza dargli troppo peso).
 Scegli da 1 a 3 bottiglie SOLO da questa lista, usando gli id esatti, preferendo quelle pronte da bere e con un abbinamento coerente. Per ognuna spiega in 1-2 frasi concrete perché va col piatto. Non inventare dati sul vino che non sono nella lista. Rispondi solo con JSON: {"picks":[{"id":string,"reason":string}],"note":string}.
 Lista: ${JSON.stringify(list)}`);
@@ -289,7 +355,7 @@ function buildPdf(bs) {
     col(36, 'Vino', 'F2'); col(212, 'Annata', 'F2'); col(244, 'Tipo', 'F2'); col(286, 'Zona', 'F2'); col(396, 'Posizione', 'F2'); col(470, 'Da bere', 'F2'); c += T(515, y, 'Valore', 'F2', 8);
     y -= 4; c += `0.5 w 36 ${y} m 559 ${y} l S\n`; y -= 11;
     rows.forEach((b) => {
-      col(36, cut(name(b), 38)); col(212, b.vintage || ''); col(244, cut(b.type, 9)); col(286, cut(b.region || '', 24)); col(396, shelfName(b).slice(0, 17)); col(470, drink(b));
+      col(36, cut(name(b) + (isStd(b) ? '' : ' (' + sizeShort(sizeMl(b)) + ')'), 38)); col(212, b.vintage || ''); col(244, cut(b.type, 9)); col(286, cut(b.region || '', 24)); col(396, shelfName(b).slice(0, 17)); col(470, drink(b));
       const v = L(eur(b.value ?? b.price)); c += T(559 - v.length * 4.2, y, v, 'F1', 8);
       y -= 12;
     });
