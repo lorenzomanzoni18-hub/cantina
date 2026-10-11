@@ -2,8 +2,15 @@
 
 /* ===== Luna ===== */
 function moonChip() {
-  const c = kind(Date.now()), good = isGood(c);
-  return `<button class="moonchip ${good ? 'good' : 'bad'}" data-a="tab" data-t="luna">Luna: giorno ${c[2]} · ${good ? 'buon giorno per bere' : 'meglio aspettare'} ›</button>`;
+  const now = Date.now(), c = kind(now), good = isGood(c);
+  let until = '';
+  for (let i = 1; i <= 480; i++) { const t = now + i * 900000; if (isGood(kind(t)) !== good) { const d = new Date(t), same = d.toDateString() === new Date().toDateString(); until = 'fino ' + (same ? 'alle ' : d.toLocaleDateString('it-IT', { weekday: 'long' }) + ' alle ') + d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }); break; } }
+  const y = new Date().getFullYear();
+  const soon = Object.values(S.bottles).filter((b) => !b.drunk && ((b.drinkTo && b.drinkTo <= y) || status(b) === 'st-past')).length;
+  const moon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
+  const clock = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>';
+  return `<div class="quick"><button class="qc" data-a="tab" data-t="luna"><span class="qi ${good ? 'ok' : 'no'}">${moon}</span><span><b>Giorno ${c[2]}</b><small>${good ? 'buono per bere' : 'meglio aspettare'}${until ? ', ' + until : ''}</small></span></button>`
+    + `<button class="qc" data-a="soon"><span class="qi wait">${clock}</span><span><b>${soon} da bere</b><small>entro quest\'anno</small></span></button></div>`;
 }
 /* Calendario a mese e anno, sfogliabile come il calendario dell'iPhone. */
 let calY = null, calM = null, calMode = 'month';
@@ -94,13 +101,26 @@ function drinkDialog(nb, cb) {
 }
 
 /* ===== Cosa stappo stasera ===== */
-let dishText = '', pairHtml = '';
-document.addEventListener('input', (e) => { if (e.target && e.target.id === 'dish') dishText = e.target.value; });
+let dishText = '', pairHtml = '', pairMode = 'dish', menuText = '', guests = 4, menuHtml = '';
+document.addEventListener('input', (e) => {
+  if (!e.target) return;
+  if (e.target.id === 'dish') dishText = e.target.value;
+  if (e.target.id === 'menu') menuText = e.target.value;
+  if (e.target.id === 'guests') guests = Math.max(1, Math.min(60, +e.target.value || 1));
+});
 
 function stasera() {
   const c = kind(Date.now()), good = isGood(c);
   const n = Object.values(S.bottles).filter((b) => !b.drunk).length;
-  return keyBanner() + `<div class="note"><b>Stasera</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>
+  const seg = `<div class="seg"><button data-a="pmode" data-m="dish" aria-pressed="${pairMode === 'dish'}">Un piatto</button><button data-a="pmode" data-m="menu" aria-pressed="${pairMode === 'menu'}">Un menu intero</button></div>`;
+  const head = keyBanner() + `<div class="note"><b>Stasera</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
+  if (pairMode === 'menu') return head + `<label for="menu">Il menu, una portata per riga</label>
+  <textarea id="menu" rows="6" placeholder="Aperitivo: crudo di gamberi e ostriche&#10;Primo: risotto ai funghi porcini&#10;Secondo: guancia di manzo brasata&#10;Formaggi: pecorino stagionato&#10;Dolce: tarte tatin">${esc(menuText)}</textarea>
+  <div class="two"><div><label for="guests">Persone a tavola</label><input id="guests" type="number" min="1" max="60" inputmode="numeric" value="${guests}"></div><div></div></div>
+  <div class="acts"><button class="btn pri" data-a="pairmenu">Componi la sequenza dei vini</button></div>
+  <p class="info">${n ? `Scelgo tra le ${n} bottiglie in cantina, tenendo conto del formato e di quante ne servono.` : 'Non hai ancora bottiglie in cantina.'}${aiReady() ? '' : ' Senza chiave dell\'IA uso un criterio semplice, portata per portata.'}</p>
+  <div id="menuout">${menuHtml}</div>`;
+  return head + `
   <label for="dish">Cosa cucini, o con chi mangi?</label>
   <textarea id="dish" rows="3" placeholder="Es. risotto ai funghi, branzino al forno, cena tra amici con salumi…">${esc(dishText)}</textarea>
   <div class="acts"><button class="btn pri" data-a="pair">Consigliami una bottiglia</button></div>
@@ -157,6 +177,50 @@ Lista: ${JSON.stringify(list)}`);
   }
   pairHtml = (note ? `<p class="info">${esc(note)}</p>` : '') + picks.map((p) => pairCard(S.bottles[p.id], p.reason)).join('');
   out.innerHTML = pairHtml;
+}
+
+async function pairMenu() {
+  const out = $('#menuout');
+  const ta = $('#menu'); if (ta) menuText = ta.value;
+  const courses = menuText.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 10);
+  const cellar = Object.values(S.bottles).filter((b) => !b.drunk);
+  if (!cellar.length) { menuHtml = '<p class="empty">Non hai ancora bottiglie in cantina.</p>'; out.innerHTML = menuHtml; return; }
+  if (!courses.length) { out.innerHTML = '<p class="info">Scrivi prima le portate, una per riga.</p>'; return; }
+  const rank = { 'st-now': 0, '': 1, 'st-wait': 2, 'st-past': 2 };
+  const cands = cellar.slice().sort((a, b) => rank[status(a)] - rank[status(b)]).slice(0, 100);
+  // un calice da circa 120 ml a persona per portata: una 75 cl fa circa 6 calici
+  const glasses = (ml) => Math.max(1, Math.floor(ml / 120));
+  let seq = null, note = '';
+  if (aiReady()) {
+    out.innerHTML = '<p class="info">Compongo la sequenza…</p>';
+    const lab = { 'st-now': 'pronta da bere', 'st-wait': 'da aspettare', 'st-past': 'oltre il picco' };
+    const list = cands.map((b) => ({ id: b.id, nome: name(b), annata: b.vintage || null, tipo: b.type, formato: sizeName(sizeMl(b)), calici: glasses(sizeMl(b)), zona: b.region || '', stato: lab[status(b)] || '', abbinamenti: (b.pairing || '').slice(0, 120), note: (b.winfo || '').slice(0, 100) }));
+    aiWaitNote = (sec) => { out.innerHTML = '<p class="info">Gemini chiede una pausa: riprovo tra ' + sec + ' secondi…</p>'; };
+    try {
+      const j = await aiJson(`Sei il sommelier di un ristorante e lavori con uno chef. Stasera c'è questo menu per ${guests} persone, una portata per riga:
+${courses.map((c, i) => (i + 1) + '. ' + c).join('\n')}
+Componi la sequenza dei vini scegliendo SOLO dalla lista qui sotto (usa gli id esatti). Regole: segui una progressione sensata (dal più leggero al più strutturato, bollicine all'inizio, vini dolci o passiti col dolce), preferisci bottiglie pronte da bere, puoi usare lo stesso vino per due portate vicine se è l'abbinamento migliore. Considera che ogni persona beve circa un calice da 120 ml a portata: indica quante bottiglie aprire di ciascun vino (un magnum vale due bottiglie). Per ogni portata spiega in 1-2 frasi concrete perché quel vino va col piatto, e dai un consiglio di servizio (temperatura, se decantare e quanto prima aprirla). Se per una portata nessun vino della lista è adatto, metti id null e suggerisci in "reason" che tipo di vino servirebbe. Non inventare dati che non sono nella lista.
+Rispondi solo con JSON: {"seq":[{"course":string,"id":string|null,"bottles":number,"reason":string,"service":string}],"note":string}
+Lista: ${JSON.stringify(list)}`);
+      seq = (j.seq || []).slice(0, courses.length).map((x, i) => ({ course: x.course || courses[i], id: x.id && S.bottles[x.id] && !S.bottles[x.id].drunk ? x.id : null, bottles: Math.max(1, Math.round(+x.bottles || 1)), reason: typeof x.reason === 'string' ? x.reason : '', service: typeof x.service === 'string' ? x.service : '' }));
+      note = typeof j.note === 'string' ? j.note : '';
+    } catch (e) { note = 'L\'IA non è disponibile adesso (' + e.message + '): ecco una proposta senza IA.'; }
+    aiWaitNote = null;
+  }
+  if (!seq || !seq.length) {
+    const used = new Set();
+    seq = courses.map((c) => {
+      const best = cands.filter((b) => !used.has(b.id)).map((b) => ({ b, s: localPairScore(b, c) })).sort((a, b) => b.s - a.s)[0];
+      if (best) used.add(best.b.id);
+      return { course: c, id: best ? best.b.id : null, bottles: best ? Math.max(1, Math.ceil(guests / glasses(sizeMl(best.b)))) : 1, reason: '', service: '' };
+    });
+    if (!note) note = 'Proposta senza IA, basata su tipo di vino, abbinamenti salvati e maturità: controllala tu.';
+  }
+  menuHtml = (note ? `<p class="info">${esc(note)}</p>` : '') + '<ol class="menuseq">' + seq.map((x) => {
+    const b = x.id && S.bottles[x.id];
+    return `<li><p class="course">${esc(x.course)}</p>${b ? pairCard(b, x.reason) + `<p class="info" style="margin:4px 0 0">${x.bottles > 1 ? 'Apri ' + x.bottles + ' bottiglie' : 'Basta una bottiglia'}${x.service ? ' · ' + esc(x.service) : ''}</p>` : `<p class="info">${esc(x.reason || 'Nessuna bottiglia adatta in cantina.')}</p>`}</li>`;
+  }).join('') + '</ol>';
+  out.innerHTML = menuHtml;
 }
 
 /* ===== Mappa delle zone ===== */
@@ -399,4 +463,54 @@ async function exportPdf() {
     document.body.appendChild(a); a.click(); a.remove();
     if (m) m.textContent = 'PDF scaricato.';
   } catch (e) { if (m) m.textContent = 'PDF non riuscito: ' + e.message; }
+}
+
+/* ===== Statistiche ===== */
+function bars(rows, fmt, opts) {
+  // rows: [{l: etichetta, v: numero, c: colore facoltativo, s: sottotitolo}]
+  if (!rows.length) return '<p class="info">Nessun dato ancora.</p>';
+  const max = Math.max(...rows.map((r) => r.v), 1);
+  return '<div class="bars">' + rows.map((r) => `<div class="bar"><span class="bl">${esc(r.l)}${r.s ? `<small>${esc(r.s)}</small>` : ''}</span><span class="bt"><i style="width:${r.v ? Math.max(2, (r.v / max) * 100).toFixed(1) : 0}%;${r.c ? 'background:' + r.c : ''}"></i></span><span class="bv">${esc(fmt ? fmt(r.v) : r.v)}</span></div>`).join('') + '</div>';
+}
+function stats() {
+  const all = Object.values(S.bottles), inC = all.filter((b) => !b.drunk), drunk = all.filter((b) => b.drunk);
+  if (!all.length) return '<p class="empty">Aggiungi qualche bottiglia e qui vedrai le statistiche della cantina.</p>';
+  const sum = (a, f) => a.reduce((t, b) => t + (f(b) || 0), 0);
+  const spent = sum(inC, (b) => b.price), val = sum(inC, (b) => b.value ?? b.price);
+  const both = inC.filter((b) => b.price && b.value != null);
+  const gain = sum(both, (b) => b.value - b.price), gainPct = sum(both, (b) => b.price) ? gain / sum(both, (b) => b.price) * 100 : 0;
+  const litres = sum(inC, (b) => sizeMl(b)) / 1000;
+  const group = (arr, key) => { const m = new Map(); arr.forEach((b) => { const k = key(b); if (k == null || k === '') return; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()]; };
+  const TCOL = { rosso: 'var(--rosso)', bianco: 'var(--bianco)', bollicine: 'var(--bollicine)', rosato: 'var(--rosato)', altro: 'var(--altro)' };
+  const byType = group(inC, (b) => b.type).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v, c: TCOL[l] }));
+  const zones = group(inC, (b) => { const i = matchRegion(b.region); return i >= 0 ? REGIONS[i].n : (b.region || null); }).sort((a, b) => b[1] - a[1]);
+  const topZ = zones.slice(0, 8).map(([l, v]) => ({ l, v }));
+  if (zones.length > 8) topZ.push({ l: 'Altre zone', v: zones.slice(8).reduce((t, z) => t + z[1], 0) });
+  const dec = group(inC, (b) => (b.vintage ? Math.floor(b.vintage / 10) * 10 : null)).sort((a, b) => a[0] - b[0]).map(([l, v]) => ({ l: "Anni '" + String(l).slice(2), v, s: String(l) + '–' + (l + 9) }));
+  const st = { 'st-now': 'Pronte da bere', 'st-wait': 'Da aspettare', 'st-past': 'Oltre il picco', '': 'Senza indicazione' };
+  const SC = { 'st-now': '#4C9A6A', 'st-wait': '#D9A441', 'st-past': '#B85C5C', '': 'var(--altro)' };
+  const mat = ['st-now', 'st-wait', 'st-past', ''].map((k) => ({ l: st[k], v: inC.filter((b) => status(b) === k).length, c: SC[k] })).filter((r) => r.v);
+  const yearOf = (b) => (b.buyDate ? +String(b.buyDate).slice(0, 4) : null);
+  const spendY = new Map();
+  all.forEach((b) => { const y = yearOf(b); if (y && b.price) spendY.set(y, (spendY.get(y) || 0) + b.price); });
+  const spendRows = [...spendY.entries()].sort((a, b) => a[0] - b[0]).slice(-8).map(([l, v]) => ({ l: String(l), v, s: ((n) => n + (n === 1 ? ' bottiglia' : ' bottiglie'))(all.filter((b) => yearOf(b) === l).length) }));
+  const noDate = all.filter((b) => b.price && !b.buyDate).length;
+  const shops = group(all, (b) => b.buyWhere).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([l, v]) => ({ l, v }));
+  const top = inC.filter((b) => (b.value ?? b.price) > 0).sort((a, b) => (b.value ?? b.price) - (a.value ?? a.price)).slice(0, 5);
+  const now = new Date(), months = [];
+  for (let i = 11; i >= 0; i--) { const d = new Date(now.getFullYear(), now.getMonth() - i, 1); months.push({ k: d.toISOString().slice(0, 7), l: d.toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }) }); }
+  const drunkM = months.map((m) => ({ l: m.l, v: drunk.filter((b) => String(b.drunk.date || '').slice(0, 7) === m.k).length }));
+  const rated = drunk.filter((b) => b.drunk.rating);
+  const avgR = rated.length ? (sum(rated, (b) => b.drunk.rating) / rated.length) : 0;
+  const tile = (v, l, cls) => `<div class="tile"><b class="${cls || ''}">${v}</b><span>${l}</span></div>`;
+  const sec = (t, body, note) => `<section class="stat"><h3>${t}</h3>${body}${note ? `<p class="info" style="margin:6px 0 0">${note}</p>` : ''}</section>`;
+  return `<div class="tiles">${tile(inC.length, 'bottiglie in cantina')}${tile(String(+litres.toFixed(1)).replace('.', ',') + ' L', 'di vino')}${tile(eur(val), 'valore stimato')}${tile(eur(spent), 'speso')}${tile((gain >= 0 ? '+' : '') + eur(gain), both.length ? 'differenza valore − prezzo (' + (gainPct >= 0 ? '+' : '') + Math.round(gainPct) + '%)' : 'serve prezzo e valore', gain >= 0 ? 'up' : 'down')}${tile(drunk.length, 'bevute' + (avgR ? ' · voto medio ' + avgR.toFixed(1).replace('.', ',') + '★' : ''))}</div>`
+    + sec('Maturità', bars(mat))
+    + sec('Per tipo', bars(byType))
+    + sec('Per zona', bars(topZ))
+    + sec('Per annata', bars(dec))
+    + sec('Spesa per anno d\'acquisto', bars(spendRows, eur), noDate ? (noDate === 1 ? '1 bottiglia con prezzo ma senza data d\'acquisto non è contata.' : noDate + ' bottiglie con prezzo ma senza data d\'acquisto non sono contate.') : '')
+    + (shops.length ? sec('Dove compri', bars(shops)) : '')
+    + sec('Bevute negli ultimi 12 mesi', bars(drunkM))
+    + sec('Le più preziose', top.map((b) => `<button class="row" data-a="open" data-id="${esc(b.id)}"><span>${esc(name(b))} ${esc(b.vintage || '')}<small>${isStd(b) ? '' : esc(sizeName(sizeMl(b))) + ' · '}${esc(posText(b))}</small></span><span>${eur(b.value ?? b.price)}</span></button>`).join('') || '<p class="info">Nessun valore inserito.</p>', 'Valori stimati, non verificati.');
 }

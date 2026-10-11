@@ -91,7 +91,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '15';
+const APP_VERSION = '16';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -328,7 +328,7 @@ const kind=d=>{const l=moonLon(d);return CONS.find(c=>l<c[0])};
 const isGood=k=>k[2]==='frutto'||k[2]==='fiore';
 const COL={frutto:'#D9A441',fiore:'#D98BA3',radice:'#8A6B4F',foglia:'#6FA27A'};
 const ICO={radice:'<path d="M7.5 8c3-2.2 6-2.2 9 0L12 21z"/><path d="M12 6V2.5M10 6.5 8.5 3.5M14 6.5l1.5-3"/>',fiore:'<circle cx="12" cy="12" r="2"/><circle cx="12" cy="6.8" r="2.8"/><circle cx="16.9" cy="10.4" r="2.8"/><circle cx="14.9" cy="16.1" r="2.8"/><circle cx="9.1" cy="16.1" r="2.8"/><circle cx="7.1" cy="10.4" r="2.8"/>',frutto:'<path d="M12 8c-2-1.5-6-1-6 4 0 4 3 8 6 8s6-4 6-8c0-5-4-5.5-6-4z"/><path d="M12 8c0-2 1-3.5 3-4"/>',foglia:'<path d="M5 19C5 9 11 4 20 4c0 9-5 15-15 15z"/><path d="M5 19 14 10"/>'};
-const ic=(t,s,x,y)=>`<g transform="translate(${x-s/2} ${y-s/2}) scale(${s/24})" fill="none" stroke="#1E2824" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO[t]}</g>`;
+const ic=(t,s,x,y,col)=>`<g transform="translate(${x-s/2} ${y-s/2}) scale(${s/24})" fill="none" style="stroke:${col||'#1E2824'}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICO[t]}</g>`;
 function dial(){const now=new Date(),b0=new Date();b0.setDate(b0.getDate()+dayOff);const d0=new Date(b0.getFullYear(),b0.getMonth(),b0.getDate()).getTime();
   const pt=(h,R)=>{const a=(h/24*360-90)*Math.PI/180;return[120+R*Math.cos(a),120+R*Math.sin(a)]};
   const segs=[];for(let m=0;m<1440;m+=10){const t=kind(d0+(m+5)*60000)[2],l=segs[segs.length-1];if(l&&l.t===t)l.to=(m+10)/60;else segs.push({t,from:m/60,to:(m+10)/60})}
@@ -339,7 +339,7 @@ function dial(){const now=new Date(),b0=new Date();b0.setDate(b0.getDate()+dayOf
   [0,6,12,18].forEach(h=>{const p=pt(h,57);s+=`<text x="${p[0]}" y="${p[1]}" font-size="10" text-anchor="middle" dominant-baseline="middle" style="fill:var(--mute)">${h}</text>`});
   const today0=dayOff===0,h=now.getHours()+now.getMinutes()/60,p1=pt(h,70),p2=pt(h,113),c=kind(today0?now.getTime():d0+12*3600000),ok=c[2]==='frutto'||c[2]==='fiore';
   s+=!today0?'':`<line x1="${p1[0]}" y1="${p1[1]}" x2="${p2[0]}" y2="${p2[1]}" style="stroke:var(--ink);stroke-width:3"/><circle cx="${p2[0]}" cy="${p2[1]}" r="5" style="fill:var(--ink)"/>`;
-  s+=ic(c[2],28,120,92)+`<text x="120" y="124" font-size="17" font-weight="600" text-anchor="middle" style="fill:var(--ink)">${today0?c[2][0].toUpperCase()+c[2].slice(1):new Date(d0).toLocaleDateString('it-IT',{weekday:'short',day:'numeric'})}</text><text x="120" y="142" font-size="11" text-anchor="middle" style="fill:var(--mute)">${today0?(ok?'buon giorno':'meglio aspettare'):'a mezzogiorno: '+c[2]}</text>`;
+  s+=ic(c[2],28,120,92,'var(--ink)')+`<text x="120" y="124" font-size="17" font-weight="600" text-anchor="middle" style="fill:var(--ink)">${today0?c[2][0].toUpperCase()+c[2].slice(1):new Date(d0).toLocaleDateString('it-IT',{weekday:'short',day:'numeric'})}</text><text x="120" y="142" font-size="11" text-anchor="middle" style="fill:var(--mute)">${today0?(ok?'buon giorno':'meglio aspettare'):'a mezzogiorno: '+c[2]}</text>`;
   const leg=['frutto','fiore','radice','foglia'].map(t=>`<span style="display:inline-flex;align-items:center;gap:3px;margin:0 6px"><svg width="18" height="18" viewBox="0 0 18 18"><circle cx="9" cy="9" r="9" fill="${COL[t]}" fill-opacity="${t==='frutto'||t==='fiore'?1:.4}"/>${ic(t,12,9,9)}</svg>${t}</span>`).join('');
   return `<div class="dialwrap" style="touch-action:pan-y"><svg viewBox="0 0 240 240" style="width:100%;max-width:260px;display:block;margin:0 auto" role="img" aria-label="Quadrante del giorno">${s}</svg></div><div class="info" style="text-align:center;margin:6px 0">${leg}</div>`}
 function dayStart(o){const b=new Date();b.setDate(b.getDate()+o);return new Date(b.getFullYear(),b.getMonth(),b.getDate()).getTime()}
@@ -380,9 +380,9 @@ function render() {
   const bs = all.filter((b) => !b.drunk);
   const spent = bs.reduce((a, b) => a + (b.price || 0), 0);
   const val = bs.reduce((a, b) => a + (b.value ?? b.price ?? 0), 0);
-  $('#tot').innerHTML = `<div><b>${bs.length}</b>bottiglie</div><div><b>${eur(spent)}</b>speso</div><div><b>${eur(val)}</b>valore stimato</div>`;
+  $('#tot').innerHTML = `<button class="totc" data-a="tab" data-t="${tab === 'stats' ? 'cantina' : 'stats'}" aria-label="${tab === 'stats' ? 'Chiudi le statistiche' : 'Apri le statistiche'}"><span><b>${bs.length}</b>bottiglie</span><span><b>${eur(spent)}</b>speso</span><span><b class="gold">${eur(val)}</b>valore</span></button><p class="statlink">${tab === 'stats' ? '‹ Torna alla cantina' : 'Tocca per le statistiche ›'}</p>`;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === tab));
-  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna };
+  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats };
   $('#app').innerHTML = (pages[tab] || cantina)();
   if (tab === 'mappa') setTimeout(initMap, 0);
 }
@@ -462,14 +462,14 @@ function cantina() {
       const b = pm[s.id + '|' + r + '|' + c];
       const has = b && imgSrc(b);
       const lbl = b ? `<span class="lbl"><b>${esc(b.producer || name(b))}</b>${b.producer && b.cuvee ? `<i>${esc(b.cuvee)}</i>` : ''}</span>` : '';
-      cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
+      cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}${b && status(b) ? `<span class="sdot ${status(b)}"></span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
     }
     return `<section class="shelf"><header><h2>${esc(s.name)}</h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
   }).join('');
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && !b.drunk).length;
   const mvb = moving && S.bottles[moving] ? `<div class="note"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
-  return mvb + keyBanner() + moonChip() + h + '<div class="legend"><span><i class="lg" style="box-shadow:0 0 0 6px #4C9A6A"></i>Pronta da bere</span><span><i class="lg" style="box-shadow:0 0 0 6px #D9A441"></i>Da aspettare</span><span><i class="lg" style="box-shadow:0 0 0 6px #B85C5C"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
+  return mvb + keyBanner() + moonChip() + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
 
 const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -480,7 +480,7 @@ function lista(all) {
   const words = nrm(q).split(/\s+/).filter(Boolean);
   const key = (b) => nrm(b.producer || b.cuvee || '').replace(/^[^a-z0-9]+/, '');
   const f = pool
-    .filter((b) => { const h = nrm([name(b), b.region, b.vintage, b.type, posText(b), isStd(b) ? '' : sizeName(sizeMl(b))].join(' ')); return words.every((w) => h.includes(w)); })
+    .filter((b) => { const h = nrm([name(b), b.region, b.vintage, b.type, posText(b), b.buyWhere, isStd(b) ? '' : sizeName(sizeMl(b))].join(' ')); return words.every((w) => h.includes(w)); })
     .filter((b) => (!flt.type || b.type === flt.type) && (!flt.stat || status(b) === flt.stat) && (!flt.region || (b.region || '') === flt.region) && (!flt.vint || String(b.vintage || '') === flt.vint) && (!flt.size || String(sizeMl(b)) === flt.size));
   const az = (a, b) => (key(a) || '~').localeCompare(key(b) || '~', 'it') || (a.vintage || 0) - (b.vintage || 0);
   const sortMode = flt.sort === 'az' && drunkView ? 'date' : flt.sort;
@@ -613,7 +613,7 @@ const dataURLToBlob = (u) => fetch(u).then((r) => r.blob());
 /* ===== Scheda bottiglia ===== */
 async function openBottle(id, pre) {
   const old = id ? S.bottles[id] : null;
-  const b = old ? { ...old } : { id: gid(), type: 'rosso', shelf: null, r: 0, c: 0, ...pre };
+  const b = old ? { ...old } : { id: gid(), type: 'rosso', shelf: null, r: 0, c: 0, added: Date.now(), buyDate: new Date().toLocaleDateString('sv-SE'), ...pre };
   let photo = null, photoFull = null, labelThumb = false, thumb = b.thumb || null, useFull = !!b.useFull;
   let aiAt = b.aiAt || null, aiDeep = !!b.aiDeep;
   let onlineLabel = false, valueNote = b.valueNote || '', srcLinks = b.srcLinks || [], busy = false, again = false, autoVal = !!b.valueAuto, dFrom = b.drinkFrom || null, dTo = b.drinkTo || null, picUrl = null, orig = null;
@@ -651,6 +651,10 @@ async function openBottle(id, pre) {
   <div><label>Valore di mercato (€)</label><input id="f_value" inputmode="decimal" value="${esc(b.value)}"></div></div>
   <p class="info" id="f_basis">${autoVal ? (valueNote ? 'Stima non verificata da ricerca online: ' + esc(valueNote) : 'Stima automatica non verificata: puoi correggerla.') : ''}</p>
   <a class="link" id="ws" target="_blank" rel="noopener" href="#">Cerca il prezzo su Wine-Searcher</a>
+  <div class="two"><div><label>Data d'acquisto</label><input id="f_bdate" type="date" value="${esc(b.buyDate || '')}"></div>
+  <div><label>Dove o da chi</label><input id="f_bwhere" list="dl_where" autocomplete="off" placeholder="Enoteca, cantina, online…" value="${esc(b.buyWhere)}"></div></div>
+  <datalist id="dl_where">${[...new Set(Object.values(S.bottles).map((x) => x.buyWhere).filter(Boolean))].sort((a, c) => a.localeCompare(c, 'it')).map((w) => `<option value="${esc(w)}"></option>`).join('')}</datalist>
+  <label>Note sull'acquisto</label><input id="f_bnote" placeholder="Es. cassa da 6, regalo, contatto del venditore…" value="${esc(b.buyNote)}">
   <label style="margin-top:12px">Quando berla</label><textarea id="f_drink" rows="3">${esc(b.drink)}</textarea>
   <label>Abbinamenti consigliati</label><textarea id="f_pairing" rows="2">${esc(b.pairing)}</textarea>
   <div class="info" id="rext"></div>
@@ -871,6 +875,7 @@ async function openBottle(id, pre) {
     return {
       ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
       price: num(g('price')), value: num(g('value')), valueAuto: autoVal && g('value') !== '',
+      buyDate: g('bdate'), buyWhere: g('bwhere'), buyNote: g('bnote'),
       drink: g('drink'), drinkFrom: dFrom, drinkTo: dTo, pairing: g('pairing'),
       info: g('info'), winfo: g('winfo'), vinfo: g('vinfo'), prod: g('prod'), srcLinks, valueNote: autoVal && g('value') !== '' ? valueNote : '', touched: [...touched],
       thumb: photo || photoFull ? thumb : null, useFull, shelf: sh, r: +r, c: +c,
@@ -1027,8 +1032,7 @@ function openSettings() {
   <h3 style="margin:16px 0 4px;font-size:16px">Aggiorna le bottiglie già inserite</h3>
   <p class="info">Cerca con l'IA informazioni, produzione, quando berla, valore di mercato ed etichetta. I campi che hai scritto tu e i valori inseriti a mano non vengono toccati. Ogni bottiglia viene salvata appena pronta: se il limite gratuito finisce, la volta dopo riparte da quelle rimaste.</p>
   <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${Object.values(S.bottles).filter(incomplete).length})</button><button class="btn" id="b_web">Rifai quelle senza ricerca web (${Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
-  <h3 style="margin:16px 0 4px;font-size:16px">Backup</h3>
-  <p class="info">Un file con tutte le bottiglie, gli scaffali e le foto. Fanne uno ogni tanto e conservalo (iCloud Drive, Mail).</p>
+  ${backupSection()}
   <div class="acts"><button class="btn" id="b_exp">Esporta backup</button><label class="btn">Importa backup<input type="file" accept="application/json,.json" hidden id="b_imp"></label></div>
   <p class="info" id="b_msg"></p>
   <p class="info">Versione dell'app: ${APP_VERSION}</p>
@@ -1059,6 +1063,7 @@ function openSettings() {
   showGx();
   $('#b_exp').onclick = exportBackup;
   $('#b_imp').onchange = importBackup;
+  bindBackupSection();
   d.onclose = null;
   d.showModal();
 }
@@ -1130,6 +1135,9 @@ document.addEventListener('click', (e) => {
   else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '' }; q = ''; render(); }
   else if (a === 'pdf') exportPdf();
   else if (a === 'pair') pairNow();
+  else if (a === 'pairmenu') pairMenu();
+  else if (a === 'soon') { tab = 'lista'; flt = { ...flt, view: 'in', stat: '', sort: 'drink' }; render(); window.scrollTo({ top: 0 }); }
+  else if (a === 'pmode') { pairMode = t.dataset.m; render(); }
   else if (a === 'mreg') pickRegion(+t.dataset.i, true);
   else if (a === 'cancelMove') { moving = null; render(); }
   else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) persistBottle({ ...m, shelf: null, r: 0, c: 0 }); else render(); }

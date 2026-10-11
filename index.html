@@ -5,21 +5,32 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" href="icon-192.png">
-<meta name="theme-color" content="#1E2824">
+<meta name="theme-color" content="#121010">
+<meta name="color-scheme" content="dark">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Cantina">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="styles.css">
 </head><body>
-<div class="top"><h1>La mia cantina</h1><button class="gear" data-a="settings" aria-label="Impostazioni e backup">⚙</button></div>
+<div class="top"><h1>La mia cantina</h1><button class="gear" data-a="settings" aria-label="Impostazioni e backup"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button></div>
 <div class="tot" id="tot"></div>
 <div id="msg"></div>
-<nav><button data-a="tab" data-t="cantina" aria-pressed="true">Cantina</button><button data-a="tab" data-t="lista" aria-pressed="false">Elenco</button><button data-a="tab" data-t="stasera" aria-pressed="false">Stasera</button><button data-a="tab" data-t="mappa" aria-pressed="false">Mappa</button><button data-a="tab" data-t="luna" aria-pressed="false">Luna</button></nav>
-<button data-a="new" class="fab" aria-label="Aggiungi una bottiglia">+</button>
+<nav aria-label="Sezioni">
+<button data-a="tab" data-t="cantina" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10l9-6 9 6v10H3zM8 20v-6h8v6"/></svg>Cantina</button>
+<button data-a="tab" data-t="lista" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Elenco</button>
+<button data-a="tab" data-t="stasera" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l-1 7a4 4 0 0 1-8 0zM12 14v6M8 21h8"/></svg>Stasera</button>
+<button data-a="tab" data-t="mappa" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>Mappa</button>
+<button data-a="tab" data-t="luna" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>Luna</button>
+</nav>
+<button data-a="new" class="fab" aria-label="Aggiungi una bottiglia"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></button>
 <main id="app"></main>
 <dialog id="dlg"></dialog>
 <dialog id="dlg2"></dialog>
 <script src="app.js"></script>
 <script src="extras.js"></script>
+<script src="backup.js"></script>
 </body></html>
