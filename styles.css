@@ -358,3 +358,8 @@ nav button{font-size:10.5px}
 .research p{margin:4px 0;font-size:14px;line-height:1.45}
 .research .svk{margin-bottom:4px}
 .brand{white-space:nowrap}.brand.lg{display:table}
+/* ritocco della sagoma */
+.trbox{border-radius:16px;overflow:hidden;border:1px solid var(--line);background:#0D0B0A;margin:6px 0 10px;max-width:420px;margin-inline:auto}
+.trbox svg{display:block;width:100%;height:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+.trbox .h{cursor:grab}
+#dlg3{z-index:30}

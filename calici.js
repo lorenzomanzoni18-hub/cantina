@@ -286,10 +286,12 @@ Cantina: ${JSON.stringify(list)}`;
 function glassEdit(gl, isNew) {
   const d = $('#dlg2');
   const g = { ...gl };
+  let tmpImg = g._img || null; // la foto resta solo in memoria, per ricalcare: non viene salvata
+  delete g._img;
   if (!g.brand && !g.model && g.name) g.model = g.name; // calici inseriti prima: il nome diventa il modello
   d.innerHTML = `<h2>${isNew ? 'Nuovo calice' : 'Modifica calice'}</h2>
   <div class="ghero sm"><span id="ge_svg">${glassSvg(g.shape, 140, { profile: g.profile })}</span></div>
-  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.profile ? 'Nuova foto' : 'Ricalca da foto'}<input type="file" accept="image/*" capture="environment" hidden class="ge_f"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ge_f"></label><button class="btn" id="ge_p" type="button">Incolla</button>${g.profile ? '<button class="btn" id="ge_np" type="button">Usa il disegno standard</button>' : ''}</div>
+  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.profile ? 'Nuova foto' : 'Ricalca da foto'}<input type="file" accept="image/*" capture="environment" hidden class="ge_f"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ge_f"></label><button class="btn" id="ge_p" type="button">Incolla</button><button class="btn" id="ge_tr" type="button">Ritocca la sagoma</button>${g.profile ? '<button class="btn" id="ge_np" type="button">Usa il disegno standard</button>' : ''}</div>
   <p class="info" id="ge_w">${g.why ? esc(g.why) : ''}</p>
   <div class="two"><div><label>Marca</label><input id="ge_b" placeholder="Es. Zalto, Riedel" value="${esc(g.brand || '')}"></div><div><label>Modello</label><input id="ge_m" placeholder="Es. Bordeaux, Veritas" value="${esc(g.model || '')}"></div></div>
   <label>Forma</label><select id="ge_s">${SHAPES.map((s) => `<option value="${s[0]}" ${g.shape === s[0] ? 'selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
@@ -299,12 +301,23 @@ function glassEdit(gl, isNew) {
   const redraw = () => { $('#ge_svg').innerHTML = glassSvg(g.shape, 140, { profile: g.profile }); };
   $('#ge_s').onchange = () => { g.shape = $('#ge_s').value; redraw(); };
   if ($('#ge_np')) $('#ge_np').onclick = () => { delete g.profile; redraw(); $('#ge_np').remove(); };
+  $('#ge_tr').onclick = () => openTracer(g.profile || shapeProfile(g.shape), tmpImg, (p) => { g.profile = p; redraw(); $('#ge_w').textContent = 'Sagoma salvata: premi Salva per tenerla.'; });
+  // dalla foto: prima il ricalco dai pixel, poi (se non riesce) la stima dell'IA, poi la forma standard; infine il ritocco a mano
+  const traceFrom = async (img, aiProf) => {
+    tmpImg = img;
+    if (!img) return;
+    let p = null;
+    try { p = await autoTrace(img); } catch (_) {}
+    const px = { top: 600 * 0.054, bottom: 600 * 0.946, axis: 225, W: 450, H: 600 };
+    if (!p && aiProf && Array.isArray(aiProf.bowl)) p = { ...aiProf, px };
+    if (!p) p = { ...shapeProfile(g.shape), px };
+    g.profile = p; redraw();
+    openTracer(p, img, (pp) => { g.profile = pp; redraw(); $('#ge_w').textContent = 'Sagoma ricalcata: premi Salva per tenerla.'; });
+  };
   const fromFile = async (file) => {
     if (!file) return;
     $('#ge_w').textContent = aiReady() ? 'Ritaglio la foto e riconosco il calice…' : 'Ritaglio la foto…';
     const r = await analyzeGlassPhoto(file, (t) => { $('#ge_w').textContent = t; });
-    if (r.j && r.j.profile) g.profile = r.j.profile;
-    redraw();
     if (r.j) {
       if (r.j.brand && !$('#ge_b').value.trim()) $('#ge_b').value = r.j.brand;
       if (r.j.model && !$('#ge_m').value.trim()) $('#ge_m').value = r.j.model;
@@ -312,6 +325,7 @@ function glassEdit(gl, isNew) {
       g.conf = r.j.confidence;
     }
     $('#ge_w').textContent = r.msg || '';
+    await traceFrom(r.img, r.j && r.j.profile);
   };
   d.querySelectorAll('.ge_f').forEach((inp) => { inp.onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; fromFile(f); }; });
   $('#ge_p').onclick = () => pasteGlassImage(fromFile, (t) => { $('#ge_w').textContent = t; });
@@ -319,7 +333,8 @@ function glassEdit(gl, isNew) {
   $('#ge_ok').onclick = async () => {
     const brand = $('#ge_b').value.trim(), model = $('#ge_m').value.trim();
     const ng = { ...g, brand, model, name: [brand, model].filter(Boolean).join(' '), shape: $('#ge_s').value, qty: +$('#ge_q').value || null, note: $('#ge_o').value.trim() };
-    delete ng.why; delete ng.img; // la foto serve solo per il ricalco: non la conservo
+    delete ng.why; delete ng.img; delete ng._aiProf; // la foto serve solo per il ricalco: non la conservo
+    if (ng.profile) { ng.profile = { ...ng.profile }; delete ng.profile.px; }
     const old = GLASSES.find((x) => x.id === ng.id);
     if (old && (old.brand !== ng.brand || old.model !== ng.model || old.shape !== ng.shape)) delete ng.research;
     const i = GLASSES.findIndex((x) => x.id === ng.id);
@@ -331,6 +346,7 @@ function glassEdit(gl, isNew) {
   };
   d.onclose = null;
   d.showModal();
+  if (tmpImg) { const ap = g._aiProf; delete g._aiProf; traceFrom(tmpImg, ap); }
 }
 // Ritaglio verticale attorno al calice, su fondo scuro, come una foto di catalogo.
 async function cropGlass(file, box) {
@@ -338,9 +354,13 @@ async function cropGlass(file, box) {
   box = normBox(box) || { left: 0.15, top: 0.05, right: 0.85, bottom: 0.95 };
   const bw = (box.right - box.left) * W, bh = (box.bottom - box.top) * H, cx = (box.left + box.right) / 2 * W, cy = (box.top + box.bottom) / 2 * H;
   let h = Math.max(bh * 1.12, bw * 1.12 * 4 / 3), w = h * 3 / 4;
-  const c = document.createElement('canvas'); c.width = 360; c.height = 480;
-  const x = c.getContext('2d'); x.fillStyle = '#121010'; x.fillRect(0, 0, 360, 480);
-  x.drawImage(im, cx - w / 2, cy - h / 2, w, h, 0, 0, 360, 480);
+  // fuori dalla foto riempio col colore medio dei bordi, così il ricalco non scambia il riempimento per il calice
+  const t = document.createElement('canvas'); t.width = t.height = 16; const tx = t.getContext('2d'); tx.drawImage(im, 0, 0, 16, 16);
+  const td = tx.getImageData(0, 0, 16, 16).data; let rr = 0, gg = 0, bb = 0, n = 0;
+  for (let i = 0; i < 256; i++) { const xx = i % 16, yy = i >> 4; if (xx && yy && xx < 15 && yy < 15) continue; rr += td[i * 4]; gg += td[i * 4 + 1]; bb += td[i * 4 + 2]; n++; }
+  const c = document.createElement('canvas'); c.width = 450; c.height = 600;
+  const x = c.getContext('2d'); x.fillStyle = `rgb(${rr / n | 0},${gg / n | 0},${bb / n | 0})`; x.fillRect(0, 0, 450, 600);
+  x.drawImage(im, cx - w / 2, cy - h / 2, w, h, 0, 0, 450, 600);
   return c.toDataURL('image/jpeg', 0.86);
 }
 async function analyzeGlassPhoto(file, onMsg) {
@@ -378,7 +398,7 @@ async function glassFromPhoto(file) {
   const r = await analyzeGlassPhoto(file, (t) => { if (m) m.textContent = t; });
   if (m) m.textContent = '';
   const j = r.j || {};
-  glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', profile: j.profile && Array.isArray(j.profile.bowl) ? j.profile : undefined, conf: j.confidence, why: r.msg }, true);
+  glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', _img: r.img, _aiProf: j.profile, conf: j.confidence, why: r.msg }, true);
 }
 document.addEventListener('change', (e) => { if (e.target && e.target.classList && e.target.classList.contains('g_photo')) { const f = e.target.files[0]; e.target.value = ''; glassFromPhoto(f); } });
 document.addEventListener('click', (e) => { const t = e.target && e.target.closest && e.target.closest('[data-a="glasspaste"]'); if (!t) return; e.stopPropagation(); pasteGlassImage(glassFromPhoto, (m) => { const el = $('#g_msg'); if (el) el.textContent = m; }); }, true);
