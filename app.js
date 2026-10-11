@@ -94,7 +94,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '18';
+const APP_VERSION = '19';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -413,7 +413,7 @@ function render() {
   const val = bs.reduce((a, b) => a + (b.value ?? b.price ?? 0), 0);
   $('#tot').innerHTML = `<button class="totc" data-a="tab" data-t="${tab === 'stats' ? 'cantina' : 'stats'}" aria-label="${tab === 'stats' ? 'Chiudi le statistiche' : 'Apri le statistiche'}"><span><b>${bs.length}</b>bottiglie</span><span><b>${eur(spent)}</b>speso</span><span><b class="gold">${eur(val)}</b>valore</span></button><p class="statlink">${tab === 'stats' ? '‹ Torna alla cantina' : 'Tocca per le statistiche ›'}</p>`;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === tab));
-  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats };
+  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
   $('#app').innerHTML = (pages[tab] || cantina)();
   if (tab === 'mappa') setTimeout(initMap, 0);
 }
@@ -425,8 +425,11 @@ function moveTo(id, sh, r, c) {
   const b = posMap()[sh + '|' + r + '|' + c];
   if (b && b.id === m.id) return;
   const from = { shelf: m.shelf, r: m.r, c: m.c };
+  const snap = snapIds(b ? [m.id, b.id] : [m.id]);
   if (b) persistBottle({ ...b, shelf: from.shelf, r: from.r, c: from.c });
   persistBottle({ ...m, shelf: sh, r, c });
+  haptic();
+  showUndo(b ? 'Bottiglie scambiate di posto' : 'Bottiglia spostata', snap);
 }
 let justDragged = 0;
 (function dragSetup() {
@@ -488,14 +491,16 @@ let justDragged = 0;
 function cantina() {
   const pm = posMap();
   let h = S.shelves.map((s) => {
-    let cells = '';
+    let cells = '', used = 0;
     for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) {
       const b = pm[s.id + '|' + r + '|' + c];
+      if (b) used++;
       const has = b && imgSrc(b);
       const lbl = b ? `<span class="lbl"><b>${esc(b.producer || name(b))}</b>${b.producer && b.cuvee ? `<i>${esc(b.cuvee)}</i>` : ''}</span>` : '';
       cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}${b && status(b) ? `<span class="sdot ${status(b)}"></span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
     }
-    return `<section class="shelf"><header><h2>${esc(s.name)}</h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
+    const tot = s.rows * s.cols;
+    return `<section class="shelf"><header><h2>${esc(s.name)} <small class="free">${used} di ${tot}${tot - used ? ' · ' + (tot - used === 1 ? '1 posto libero' : (tot - used) + ' liberi') : ' · pieno'}</small></h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
   }).join('');
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && inCellar(b)).length;
@@ -569,7 +574,7 @@ function lista(all) {
   const countTxt = V === 'wish' ? gl + (gl === 1 ? ' vino' : ' vini') : nf + (nf === 1 ? ' bottiglia' : ' bottiglie') + (gl < nf ? ' (' + gl + (gl === 1 ? ' vino)' : ' vini)') : '');
   const empty = { in: ' ancora: tocca +', pend: ' in arrivo. Quando ordini un vino, nella sua scheda scegli «In arrivo»', drunk: ' bevuta ancora', wish: ' nei desideri: tocca + per aggiungere un vino che vuoi comprare o assaggiare' }[V];
   const tools = V === 'in' && nIn ? `<div class="acts"><button class="btn" data-a="pdf">Inventario in PDF</button><button class="btn" data-a="carta">Carta dei vini</button><button class="btn" data-a="csv">Esporta in Excel</button><button class="btn" data-a="ics">Promemoria nel calendario</button></div><p class="info" id="pdfmsg"></p>` : '';
-  return keyBanner() + `<div class="seg seg4"><button data-a="view" data-v="in" aria-pressed="${V === 'in'}">Cantina<small>${nIn}</small></button><button data-a="view" data-v="pend" aria-pressed="${V === 'pend'}">In arrivo<small>${nPe}</small></button><button data-a="view" data-v="drunk" aria-pressed="${V === 'drunk'}">Bevute<small>${nDr}</small></button><button data-a="view" data-v="wish" aria-pressed="${V === 'wish'}">Desideri<small>${nWi}</small></button></div><div class="azbar"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona, lista" value="${esc(q)}">${jump}</div>${filters}<p class="info">${countTxt}${any ? ' trovati' : ''}${any ? ' <button class="link" data-a="clearflt">Azzera filtri</button>' : ''}</p>` + (f.length ? rows
+  return keyBanner() + `<div class="seg seg4"><button data-a="view" data-v="in" aria-pressed="${V === 'in'}">Cantina<small>${nIn}</small></button><button data-a="view" data-v="pend" aria-pressed="${V === 'pend'}">In arrivo<small>${nPe}</small></button><button data-a="view" data-v="drunk" aria-pressed="${V === 'drunk'}">Bevute<small>${nDr}</small></button><button data-a="view" data-v="wish" aria-pressed="${V === 'wish'}">Desideri<small>${nWi}</small></button></div><div class="azbar"><div class="srow"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona, lista" value="${esc(q)}"><button class="iconbtn" data-a="scanfind" aria-label="Cerca con il codice a barre"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg></button></div>${jump}</div>${filters}<p class="info">${countTxt}${any ? ' trovati' : ''}${any ? ' <button class="link" data-a="clearflt">Azzera filtri</button>' : ''}</p>` + (f.length ? rows
     : `<p class="empty">${V === 'wish' ? 'Nessun vino' : 'Nessuna bottiglia'}${any ? ' trovata' : empty}.</p>`) + tools;
 }
 
@@ -690,11 +695,11 @@ async function openBottle(id, pre) {
   }).join('');
   const d = $('#dlg');
   const gIn = grp.filter(inCellar).length, gPe = grp.filter((x) => !x.drunk && x.pending).length, gDr = grp.filter((x) => x.drunk).length;
-  d.innerHTML = `<h2>${b.wish ? (id ? 'Vino nei desideri' : 'Nuovo vino nei desideri') : id ? 'Modifica bottiglia' : 'Nuova bottiglia'}</h2>${grp.length > 1 ? `<p class="note">Bottiglie uguali: <b>${grp.length}</b> (${[gIn ? gIn + ' in cantina' : '', gPe ? gPe + ' in arrivo' : '', gDr ? gDr + ' bevute' : ''].filter(Boolean).join(', ')}). Le informazioni che modifichi qui valgono per tutte; posizione e stato solo per questa.</p>` : ''}${b.drunk ? `<p class="note"><b>Bevuta il ${esc(new Date(b.drunk.date).toLocaleDateString('it-IT'))}</b>${b.drunk.rating ? ' · voto ' + '★'.repeat(b.drunk.rating) + '☆'.repeat(5 - b.drunk.rating) : ''}${b.drunk.notes ? '<br>' + esc(b.drunk.notes) : ''}</p>` : ''}<div id="picbox"></div>
+  d.innerHTML = `<p class="eyebrow">${b.wish ? (id ? 'Vino nei desideri' : 'Nuovo vino nei desideri') : id ? 'Scheda bottiglia' : 'Nuova bottiglia'}</p><h2 id="dtitle" class="dtitle"></h2><div class="chips" id="dchips"></div>${grp.length > 1 ? `<p class="note">Bottiglie uguali: <b>${grp.length}</b> (${[gIn ? gIn + ' in cantina' : '', gPe ? gPe + ' in arrivo' : '', gDr ? gDr + ' bevute' : ''].filter(Boolean).join(', ')}). Le informazioni che modifichi qui valgono per tutte; posizione e stato solo per questa.</p>` : ''}${b.drunk ? `<p class="note"><b>Bevuta il ${esc(new Date(b.drunk.date).toLocaleDateString('it-IT'))}</b>${b.drunk.rating ? ' · voto ' + '★'.repeat(b.drunk.rating) + '☆'.repeat(5 - b.drunk.rating) : ''}${b.drunk.notes ? '<br>' + esc(b.drunk.notes) : ''}</p>` : ''}<div id="picbox"></div>
   <div id="photoctl">
   <p class="info">Fotografa l'etichetta: compilo io i campi, tu controlli.</p>
   <div class="acts"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="pasteimg" type="button">Incolla immagine</button></div>
-  <div class="acts" style="margin-top:8px"><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca etichetta online</a></div>
+  <div class="acts" style="margin-top:8px"><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca etichetta online</a></div>
   <div id="pbox" class="pbox" contenteditable="true" inputmode="none">Per incollare un'immagine trovata online: tieni premuto qui e scegli Incolla.</div>
   </div>
   <div class="acts" id="photoact" hidden><button class="btn" id="whole" type="button" hidden></button><button class="btn" id="chg" type="button">Cambia foto</button></div>
@@ -721,19 +726,20 @@ async function openBottle(id, pre) {
   <label>Note sull'acquisto</label><input id="f_bnote" placeholder="Es. cassa da 6, regalo, contatto del venditore…" value="${esc(b.buyNote)}">
   <label>Liste personali</label><input id="f_tags" autocomplete="off" placeholder="Es. regali, ristorante, da riprovare" value="${esc(tagsOf(b).join(', '))}">
   <div class="tagpick">${[...new Set(Object.values(S.bottles).flatMap(tagsOf))].sort((a, c) => a.localeCompare(c, 'it')).map((t) => `<button type="button" class="link" data-tag="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
-  <label style="margin-top:12px">Quando berla</label><textarea id="f_drink" rows="3">${esc(b.drink)}</textarea>
+  <label style="margin-top:12px">Quando berla</label><div id="dwin"></div><textarea id="f_drink" rows="3">${esc(b.drink)}</textarea>
   <label>Abbinamenti consigliati</label><textarea id="f_pairing" rows="2">${esc(b.pairing)}</textarea>
   <div class="info" id="rext"></div>
   <h3 class="sub">Servizio</h3><div id="svcbox">${serviceHtml(b)}</div>
-  <div id="f_posw" ${state0 === 'in' || state0 === 'drunk' ? '' : 'hidden'} ${b.drunk ? 'hidden' : ''}><label>Posizione</label><select id="f_pos">${opts}</select></div>
+  <div id="f_posw" ${state0 === 'in' || state0 === 'drunk' ? '' : 'hidden'} ${b.drunk ? 'hidden' : ''}><label>Posizione</label><select id="f_pos">${opts}</select><div class="acts" style="margin:-4px 0 12px"><button class="btn" id="ffree" type="button">Primo posto libero</button>${id && b.shelf && inCellar(b) ? `<button class="btn" data-a="locate" data-id="${esc(b.id)}" type="button">Dov'è sullo scaffale?</button>` : ''}</div></div>
   <h3 class="sub">Degustazioni</h3><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
+  <details class="more aiinfo"><summary>Produttore, vino, produzione e annata</summary>
   <label>Il produttore</label><textarea id="f_info" rows="6">${esc(b.info)}</textarea>
   <label>Sulla cuvée e sulla bottiglia</label><textarea id="f_winfo" rows="7">${esc(b.winfo)}</textarea>
   <label>Produzione e bottiglie prodotte</label><textarea id="f_prod" rows="3">${esc(b.prod)}</textarea>
   <label>Sull'annata</label><textarea id="f_vinfo" rows="4">${esc(b.vinfo)}</textarea>
-  <div class="info" id="esrc"></div>
+  <div class="info" id="esrc"></div></details>
   <p class="info">Le informazioni automatiche sono stime dell'IA e possono contenere errori: controllale prima di fidarti.</p>
-  <div class="acts"><button class="btn pri" id="sv">Salva</button><button class="btn" id="cl">Annulla</button>${id && inCellar(b) ? '<button class="btn" id="drk">Ho bevuto questa</button>' : ''}${b.drunk ? '<button class="btn" id="undrk">Rimetti in cantina</button>' : ''}${id ? '<button class="btn" id="del">Elimina</button>' : ''}</div>`;
+  <div class="acts"><button class="btn pri" id="sv">Salva</button>${id ? '' : '<button class="btn" id="svn">Salva e aggiungi un\'altra</button>'}<button class="btn" id="cl">Annulla</button>${id && inCellar(b) ? '<button class="btn" id="drk">Ho bevuto questa</button>' : ''}${b.drunk ? '<button class="btn" id="undrk">Rimetti in cantina</button>' : ''}${id ? '<button class="btn" id="del">Elimina</button>' : ''}</div>`;
 
   const g = (k) => $('#f_' + k).value.trim();
   const scs = (t) => { const el = $('#scs'); el.textContent = t; if (t) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
@@ -854,7 +860,7 @@ async function openBottle(id, pre) {
     aiWaitNote = (s) => scs('Gemini chiede una pausa: riprovo da solo tra ' + s + ' secondi…');
     try {
       const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf() });
-      applyInfo(r.j);
+      applyInfo(r.j); updDW(); updHead();
       aiAt = Date.now(); aiDeep = !!r.deep;
       if (r.links.length) { srcLinks = r.links; showSrc(); }
       const lab = await findLabel(true);
@@ -924,7 +930,7 @@ async function openBottle(id, pre) {
       if (j.size_ml) setSize(j.size_ml);
       if (['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
       if (j.barcode && /^\d{8,14}$/.test(String(j.barcode))) b.barcode = String(j.barcode);
-      applyInfo({ ...j, price_eur: null });
+      applyInfo({ ...j, price_eur: null }); updDW(); updHead();
       await setPhoto(file, j.box, j.label_box, j.barcode, j.quality === 'scarsa');
       ws();
       const poor = j.quality === 'scarsa' ? ' Foto poco chiara (sfocata, buia o tagliata): riscattala, oppure incolla una foto migliore.' : '';
@@ -938,6 +944,54 @@ async function openBottle(id, pre) {
       notice('Lettura non riuscita', esc(errorHint(err.message)) + '<br><br><small>Dettaglio: ' + esc(err.message) + '</small>', [{ t: 'Impostazioni', fn: openSettings }, { t: 'Chiudi', pri: true }]);
     }
   });
+
+  // Intestazione con nome e dettagli, grafico della finestra di beva
+  const updHead = () => {
+    const nm = [g('producer'), g('cuvee')].filter(Boolean).join(' ');
+    $('#dtitle').textContent = nm || (id ? 'Bottiglia senza nome' : b.wish ? 'Nuovo vino' : 'Nuova bottiglia');
+    const st = $('#f_state') ? { in: 'In cantina', pend: 'In arrivo', wish: 'Nei desideri' }[$('#f_state').value] : (b.drunk ? 'Bevuta' : '');
+    const sz = sizeOf();
+    $('#dchips').innerHTML = [g('vintage'), g('type'), sz !== 750 ? sizeName(sz) : '', g('region'), st].filter(Boolean).map((x) => `<span>${esc(x)}</span>`).join('');
+  };
+  ['producer', 'cuvee', 'vintage', 'region'].forEach((k) => $('#f_' + k).addEventListener('input', updHead));
+  ['type', 'size'].forEach((k) => $('#f_' + k).addEventListener('change', updHead));
+  if ($('#f_state')) $('#f_state').addEventListener('change', updHead);
+  updHead();
+  const updDW = () => { const rg = drinkRange(dFrom, dTo, g('drink')); $('#dwin').innerHTML = rg ? drinkBar(rg[0], rg[1], num(g('vintage'))) : ''; };
+  $('#f_drink').addEventListener('input', updDW);
+  $('#f_vintage').addEventListener('input', updDW);
+  updDW();
+  // Primo posto libero
+  $('#ffree').onclick = () => {
+    const sel = $('#f_pos'), cur = sel.value, opt = [...sel.options].find((o) => o.value && (o.value !== cur || !cur));
+    const pm2 = posMap(), free = [...sel.options].find((o) => o.value && !pm2[o.value]);
+    const pick = free || opt;
+    if (pick) { sel.value = pick.value; haptic(); scs('Posto scelto: ' + pick.parentNode.label + ', ' + pick.textContent.toLowerCase() + '.'); } else scs('Non ci sono posti liberi: aggiungi uno scaffale o ingrandiscine uno.');
+  };
+  // Codice a barre
+  const useBarcode = async (code) => {
+    if (!code) return;
+    b.barcode = code;
+    const found = byBarcode(code).filter((x) => x.id !== b.id);
+    if (found.length && !id) {
+      const f0 = found.find(inCellar) || found[0], n = groupOf(f0).filter(inCellar).length;
+      notice('Ce l\'hai già', esc(name(f0) + (f0.vintage ? ' ' + f0.vintage : '')) + `: ${n} ${n === 1 ? 'bottiglia' : 'bottiglie'} in cantina. Vuoi aggiungere una bottiglia uguale, con le stesse informazioni?`, [
+        { t: 'Aggiungi una uguale', pri: true, fn: async () => { d.close(); const x = { ...f0, id: gid(), shelf: null, r: 0, c: 0, added: Date.now(), pending: false, wish: false }; delete x.drunk; await persistBottle(x); if (S.shelves.length) { placeQ = [x.id]; tab = 'cantina'; render(); } } },
+        { t: 'No, è un altro vino' }]);
+      return;
+    }
+    scs('Cerco il codice ' + code + '…');
+    const pr = await offProduct(code);
+    if (!pr) { scs('Codice ' + code + ' salvato, ma non l\'ho trovato nell\'archivio libero Open Food Facts (molti vini non ci sono): fotografa l\'etichetta e compilo io.'); return; }
+    if (pr.brand && !g('producer')) $('#f_producer').value = pr.brand;
+    if (pr.name && !g('cuvee')) $('#f_cuvee').value = pr.name;
+    if (pr.qty) setSize(mapSize(pr.qty));
+    if (pr.img && !cur()) { try { photoFull = photo = pr.img; useFull = false; thumb = await makeLabelThumb(pr.img, null); labelThumb = true; onlineLabel = true; showPic(); } catch (_) {} }
+    updHead(); ws(); showR();
+    scs('Trovato su Open Food Facts: controlla produttore e cuvée.' + (aiReady() ? ' Per le informazioni premi «Cerca dati ed etichetta».' : ''));
+  };
+  $('#bcode').onclick = async () => useBarcode(await scanBarcode());
+  if (!id && b.barcode) setTimeout(() => useBarcode(b.barcode), 50);
 
   // Stato, liste e degustazioni
   const stateOf = () => ($('#f_state') ? $('#f_state').value : 'in');
@@ -1010,14 +1064,23 @@ async function openBottle(id, pre) {
       tab = 'cantina'; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
     } else if (made.length) { msg(made.length + ' bottiglie uguali aggiunte.'); setTimeout(() => msg(''), 4000); }
   };
-  $('#sv').onclick = () => commit(build());
-  if ($('#drk')) $('#drk').onclick = () => tastingDialog(name(build()), true, (t) => { const nb = build(); nb.tastings = [...(nb.tastings || []), { ...t, drunk: true }]; nb.drunk = { date: t.date, rating: t.rating, notes: t.notes }; nb.shelf = null; nb.r = 0; nb.c = 0; commit(nb); });
+  $('#sv').onclick = () => { haptic(); commit(build()); };
+  if ($('#svn')) $('#svn').onclick = async () => {
+    const nb = build();
+    await commit(nb);
+    haptic();
+    // la prossima nasce con gli stessi dati d'acquisto e nel posto libero successivo
+    const pm2 = posMap(); let next = null;
+    S.shelves.forEach((s) => { if (next) return; for (let r = 0; r < s.rows && !next; r++) for (let c = 0; c < s.cols && !next; c++) if (!pm2[s.id + '|' + r + '|' + c] && !placeQ.length) next = { shelf: s.id, r, c }; });
+    openBottle(null, { buyDate: nb.buyDate, buyWhere: nb.buyWhere, buyNote: nb.buyNote, tags: nb.tags, pending: nb.pending, eta: nb.eta, wish: nb.wish, ...(next && inCellar(nb) ? next : {}) });
+  };
+  if ($('#drk')) $('#drk').onclick = () => tastingDialog(name(build()), true, async (t) => { const snap = snapIds(grp.map((x) => x.id)); const nb = build(); nb.tastings = [...(nb.tastings || []), { ...t, drunk: true }]; nb.drunk = { date: t.date, rating: t.rating, notes: t.notes }; nb.shelf = null; nb.r = 0; nb.c = 0; await commit(nb); haptic(); showUndo('Segnata come bevuta', snap); });
   if ($('#undrk')) $('#undrk').onclick = () => { const nb = build(); delete nb.drunk; nb.shelf = null; commit(nb); };
   if (id) {
     let armed = false;
     $('#del').onclick = (e) => {
       if (!armed) { armed = true; e.target.textContent = grp.length > 1 ? 'Conferma: elimino solo questa bottiglia' : 'Conferma eliminazione'; return; }
-      removeBottle(id); d.close();
+      (async () => { const snap = snapIds([id]); const ph = { [id + ':c']: await dbGet('photos', id + ':c'), [id + ':f']: await dbGet('photos', id + ':f') }; d.close(); await removeBottle(id); showUndo('Bottiglia eliminata', snap, ph); })();
     };
   }
   d.onclose = () => { if (picUrl) { URL.revokeObjectURL(picUrl); picUrl = null; } };
@@ -1299,7 +1362,10 @@ document.addEventListener('click', (e) => {
   else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '', tag: '' }; q = ''; render(); }
   else if (a === 'pdf') exportPdf();
   else if (a === 'carta') openCarta();
-  else if (a === 'glasses') openGlasses();
+  else if (a === 'glasses') { ['#dlg', '#dlg2'].forEach((x) => { if ($(x).open) $(x).close(); }); tab = 'calici'; render(); window.scrollTo({ top: 0 }); }
+  else if (a === 'glass') { const gl = GLASSES.find((x) => x.id === t.dataset.id); if (gl) glassDetail(gl); }
+  else if (a === 'gshape') glassDetail(null, t.dataset.s);
+  else if (a === 'glassnew') glassEdit({ id: gid(), shape: 'universale', name: '', qty: null }, true);
   else if (a === 'csv') exportCsv();
   else if (a === 'ics') exportIcs();
   else if (a === 'pair') pairNow();
@@ -1312,13 +1378,15 @@ document.addEventListener('click', (e) => {
   else if (a === 'mreg') pickRegion(+t.dataset.i, true);
   else if (a === 'cancelMove') { moving = null; render(); }
   else if (a === 'placeStop') { placeQ = []; render(); }
-  else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) persistBottle({ ...m, shelf: null, r: 0, c: 0 }); else render(); }
+  else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) { const snap = snapIds([m.id]); persistBottle({ ...m, shelf: null, r: 0, c: 0 }); showUndo('Tolta dallo scaffale', snap); } else render(); }
+  else if (a === 'locate') locate(t.dataset.id);
+  else if (a === 'scanfind') scanFind();
   else if (a === 'slot') {
     if (Date.now() - justDragged < 600) return;
     const sh = t.dataset.s, r = +t.dataset.r, c = +t.dataset.c, b = posMap()[sh + '|' + r + '|' + c];
     if (placeQ.length && !b) {
       const id = placeQ.shift();
-      if (S.bottles[id]) persistBottle({ ...S.bottles[id], shelf: sh, r, c });
+      if (S.bottles[id]) { persistBottle({ ...S.bottles[id], shelf: sh, r, c }); haptic(); }
       return;
     }
     if (moving) {
@@ -1353,7 +1421,7 @@ document.addEventListener('input', (e) => {
     S.bottles = {};
     bs.forEach((b) => { S.bottles[b.id] = b; });
     S.shelves = (await dbGet('kv', 'shelves')) || [];
-    await loadGlasses();
+    await loadGlasses(); await ensureGlassIds();
   } catch (e) { msg('Non riesco ad aprire il salvataggio sul telefono: ' + esc(e.message)); }
   render();
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
