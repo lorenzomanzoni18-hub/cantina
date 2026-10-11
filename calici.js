@@ -216,7 +216,7 @@ function caliciPage() {
   const missing = (() => { const m = new Map(); uniqW(Object.values(S.bottles).filter(inCellar)).forEach((b) => { const g = bestGlass(b); if (!g.mine || g.rank > 0) m.set(g.ideal, (m.get(g.ideal) || 0) + 1); }); return [...m.entries()].sort((a, b) => b[1] - a[1]); })();
   const card = (g) => `<button class="gcard" data-a="glass" data-id="${esc(g.id)}">${glassSvg(g.shape, 112, { profile: g.profile })}${g.profile ? '<span class="traced">ricalcato</span>' : ''}${g.brand ? `<span class="brand">${esc(g.brand)}</span>` : ''}<b>${esc(g.model || gName(g))}</b><small>${esc(shapeName(g.shape).replace(/ \(.*\)/, ''))}${g.qty ? ' · ' + g.qty + ' pezzi' : ''}</small><span class="gcount">${((n) => n + (n === 1 ? ' vino' : ' vini'))(winesForGlass(g).length)}</span></button>`;
   return `<div class="cal-head"><h2 class="ptitle">I miei calici</h2><p class="info">Tocca un calice per sapere a cosa serve e quali vini della tua cantina servirci. ${nW ? 'Ogni vino viene abbinato al calice migliore che hai.' : ''}</p>
-  <div class="acts"><label class="btn pri">Riconosci da foto<input type="file" accept="image/*" capture="environment" hidden id="g_photo"></label><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
+  <div class="acts"><label class="btn pri">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="g_photo"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="g_photo"></label><button class="btn" data-a="glasspaste" type="button">Incolla immagine</button><button class="btn" data-a="glassnew">Aggiungi a mano</button></div><p class="info" id="g_msg"></p></div>
   ${mine.length ? `<div class="ggrid">${mine.map(card).join('')}</div>` : '<p class="empty">Non hai ancora inserito calici: fotografane uno e lo riconosco io, oppure aggiungilo a mano.</p>'}
   ${missing.length && mine.length ? `<div class="note"><b>Cosa ti manca</b><br>${missing.slice(0, 3).map(([s, n]) => `${n} ${n === 1 ? 'vino' : 'vini'} della tua cantina starebbero meglio in un calice <b>${esc(shapeName(s).toLowerCase())}</b>`).join('<br>')}.</div>` : ''}
   <h3 class="letter">Tutte le forme</h3><p class="info">Guida rapida: tocca una forma per scoprire a cosa serve.</p>
@@ -289,7 +289,7 @@ function glassEdit(gl, isNew) {
   if (!g.brand && !g.model && g.name) g.model = g.name; // calici inseriti prima: il nome diventa il modello
   d.innerHTML = `<h2>${isNew ? 'Nuovo calice' : 'Modifica calice'}</h2>
   <div class="ghero sm"><span id="ge_svg">${glassSvg(g.shape, 140, { profile: g.profile })}</span></div>
-  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.profile ? 'Ricalca da un\'altra foto' : 'Ricalca dalla foto del tuo calice'}<input type="file" accept="image/*" capture="environment" hidden id="ge_f"></label>${g.profile ? '<button class="btn" id="ge_np" type="button">Usa il disegno standard</button>' : ''}</div>
+  <div class="acts" style="justify-content:center;margin:-4px 0 10px"><label class="btn">${g.profile ? 'Nuova foto' : 'Ricalca da foto'}<input type="file" accept="image/*" capture="environment" hidden class="ge_f"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ge_f"></label><button class="btn" id="ge_p" type="button">Incolla</button>${g.profile ? '<button class="btn" id="ge_np" type="button">Usa il disegno standard</button>' : ''}</div>
   <p class="info" id="ge_w">${g.why ? esc(g.why) : ''}</p>
   <div class="two"><div><label>Marca</label><input id="ge_b" placeholder="Es. Zalto, Riedel" value="${esc(g.brand || '')}"></div><div><label>Modello</label><input id="ge_m" placeholder="Es. Bordeaux, Veritas" value="${esc(g.model || '')}"></div></div>
   <label>Forma</label><select id="ge_s">${SHAPES.map((s) => `<option value="${s[0]}" ${g.shape === s[0] ? 'selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
@@ -299,8 +299,7 @@ function glassEdit(gl, isNew) {
   const redraw = () => { $('#ge_svg').innerHTML = glassSvg(g.shape, 140, { profile: g.profile }); };
   $('#ge_s').onchange = () => { g.shape = $('#ge_s').value; redraw(); };
   if ($('#ge_np')) $('#ge_np').onclick = () => { delete g.profile; redraw(); $('#ge_np').remove(); };
-  $('#ge_f').onchange = async (e) => {
-    const file = e.target.files[0]; e.target.value = '';
+  const fromFile = async (file) => {
     if (!file) return;
     $('#ge_w').textContent = aiReady() ? 'Ritaglio la foto e riconosco il calice…' : 'Ritaglio la foto…';
     const r = await analyzeGlassPhoto(file, (t) => { $('#ge_w').textContent = t; });
@@ -314,6 +313,8 @@ function glassEdit(gl, isNew) {
     }
     $('#ge_w').textContent = r.msg || '';
   };
+  d.querySelectorAll('.ge_f').forEach((inp) => { inp.onchange = (e) => { const f = e.target.files[0]; e.target.value = ''; fromFile(f); }; });
+  $('#ge_p').onclick = () => pasteGlassImage(fromFile, (t) => { $('#ge_w').textContent = t; });
   $('#ge_x').onclick = () => d.close();
   $('#ge_ok').onclick = async () => {
     const brand = $('#ge_b').value.trim(), model = $('#ge_m').value.trim();
@@ -360,8 +361,17 @@ async function analyzeGlassPhoto(file, onMsg) {
     return { img, j: null, msg: 'Riconoscimento non riuscito (' + err.message + '): compila tu i campi.' };
   } finally { aiWaitNote = null; }
 }
-async function glassFromPhoto(e) {
-  const file = e.target.files[0]; e.target.value = '';
+// Immagine copiata (per esempio da una pagina web: tieni premuto sulla foto e scegli Copia).
+async function pasteGlassImage(fn, onMsg) {
+  try {
+    for (const it of await navigator.clipboard.read()) {
+      const ty = it.types.find((t) => t.startsWith('image/'));
+      if (ty) { const b = await it.getType(ty); await fn(new File([b], 'calice.' + (ty.split('/')[1] || 'png'), { type: ty })); return; }
+    }
+    onMsg('Negli appunti non c\'è nessuna immagine: su Safari tieni premuto sulla foto e scegli «Copia».');
+  } catch (_) { onMsg('Non riesco a leggere gli appunti: salva l\'immagine in Foto e usa «Dalla galleria».'); }
+}
+async function glassFromPhoto(file) {
   if (!file) return;
   const m = $('#g_msg');
   if (m) m.textContent = aiReady() ? 'Riconosco il calice…' : '';
@@ -370,4 +380,5 @@ async function glassFromPhoto(e) {
   const j = r.j || {};
   glassEdit({ id: gid(), shape: SHAPES.some((s) => s[0] === j.shape) ? j.shape : 'universale', brand: j.brand || '', model: j.model || '', profile: j.profile && Array.isArray(j.profile.bowl) ? j.profile : undefined, conf: j.confidence, why: r.msg }, true);
 }
-document.addEventListener('change', (e) => { if (e.target && e.target.id === 'g_photo') glassFromPhoto(e); });
+document.addEventListener('change', (e) => { if (e.target && e.target.classList && e.target.classList.contains('g_photo')) { const f = e.target.files[0]; e.target.value = ''; glassFromPhoto(f); } });
+document.addEventListener('click', (e) => { const t = e.target && e.target.closest && e.target.closest('[data-a="glasspaste"]'); if (!t) return; e.stopPropagation(); pasteGlassImage(glassFromPhoto, (m) => { const el = $('#g_msg'); if (el) el.textContent = m; }); }, true);
