@@ -367,3 +367,14 @@ nav button{font-size:10.5px}
 /* calici in vetro */
 .gcard .gsvg{filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
 .topbtns{display:flex;gap:8px}
+/* backup guidato */
+.wz{padding-left:20px;margin:6px 0 12px}.wz li{margin:0 0 14px;font-size:14.5px;line-height:1.45}.wz .acts{margin-top:6px}
+.bkban{border-color:#5A4A2E}
+/* produttore, retro-etichetta, uscite */
+.prodlink{font-size:13px;padding:5px 11px;margin:-2px 0 10px}
+#retbox .retro{display:flex;align-items:center;gap:10px;width:100%;background:var(--sf2);border:1px solid var(--line);border-radius:12px;padding:6px;color:var(--mute);font-size:12.5px;text-align:left;margin:8px 0}
+#retbox .retro img{width:54px;height:54px;object-fit:cover;border-radius:8px;flex:none}
+#retbox .retro.big{flex-direction:column;align-items:stretch}
+#retbox .retro.big img{width:100%;height:auto;max-height:70vh;object-fit:contain}
+.howseg{flex-wrap:wrap}.howseg button{flex:1 1 30%;font-size:13px;padding:8px 4px}
+.tiles .tile b{font-size:20px}

@@ -84,18 +84,31 @@ function luna() { return calendar() + '<div id="lunaday">' + today() + '</div>';
 function tastingDialog(title, drinking, cb) {
   const d = $('#dlg2');
   const day = new Date().toLocaleDateString('sv-SE');
-  d.innerHTML = `<h2>${drinking ? 'Ho bevuto questa' : 'Nuova degustazione'}</h2><p class="info">${esc(title)}</p>
+  d.innerHTML = `<h2>${drinking ? 'Esce dalla cantina' : 'Nuova degustazione'}</h2><p class="info">${esc(title)}</p>
+  ${drinking ? `<div class="seg howseg">${EXITS.map(([k, l], i) => `<button type="button" data-how="${k}" aria-pressed="${i === 0}">${esc(l.replace('Rotta o andata a male', 'Persa').replace('Portata a una cena', 'A una cena'))}</button>`).join('')}</div>
+  <div id="dr_tow" hidden><label id="dr_tol">A chi</label><input id="dr_to" autocomplete="off" placeholder="Nome, occasione o ristorante"></div>` : ''}
   <label>Data</label><input id="dr_d" type="date" value="${day}">
+  <div id="dr_rw">
   <label>Voto</label><div class="rate" role="radiogroup" aria-label="Voto">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-r="${n}" aria-label="${n} stelle">☆</button>`).join('')}</div>
-  <label>Note di degustazione</label><textarea id="dr_n" rows="4" placeholder="Come l'hai trovato, se è pronto, con cosa l'hai bevuto…"></textarea>
-  <p class="info">${drinking ? 'La bottiglia lascia lo scaffale e va tra le «Bevute». La degustazione resta nella scheda di tutte le bottiglie uguali.' : 'La degustazione resta nella scheda del vino; nessuna bottiglia viene tolta dalla cantina.'}</p>
+  <label>Note di degustazione</label><textarea id="dr_n" rows="4" placeholder="Come l'hai trovato, se è pronto, con cosa l'hai bevuto…"></textarea></div>
+  <p class="info" id="dr_i">${drinking ? 'La bottiglia lascia lo scaffale e va tra le «Bevute». La degustazione resta nella scheda di tutte le bottiglie uguali.' : 'La degustazione resta nella scheda del vino; nessuna bottiglia viene tolta dalla cantina.'}</p>
   <div class="acts"><button class="btn pri" id="dr_ok">Salva</button><button class="btn" id="dr_x">Annulla</button></div>`;
   let rating = 0;
   const paint = () => d.querySelectorAll('[data-r]').forEach((x) => { x.textContent = +x.dataset.r <= rating ? '★' : '☆'; x.setAttribute('aria-pressed', +x.dataset.r <= rating); });
   d.querySelectorAll('[data-r]').forEach((x) => x.onclick = () => { rating = rating === +x.dataset.r ? 0 : +x.dataset.r; paint(); });
+  let how = 'bevuta';
+  d.querySelectorAll('[data-how]').forEach((x) => x.onclick = () => {
+    how = x.dataset.how;
+    d.querySelectorAll('[data-how]').forEach((y) => y.setAttribute('aria-pressed', y === x));
+    $('#dr_tow').hidden = !['regalata', 'cena', 'venduta'].includes(how);
+    $('#dr_tol').textContent = how === 'cena' ? 'Dove o da chi' : how === 'venduta' ? 'A chi (facoltativo)' : 'A chi';
+    $('#dr_rw').hidden = how !== 'bevuta' && how !== 'cena';
+    $('#dr_i').textContent = how === 'bevuta' ? 'La bottiglia lascia lo scaffale e va tra le «Bevute». La degustazione resta nella scheda di tutte le bottiglie uguali.' : how === 'cena' ? 'La bottiglia lascia lo scaffale. Se l\'hai assaggiata, il voto e le note restano nella scheda del vino.' : 'La bottiglia lascia lo scaffale e va tra le uscite, con il motivo.';
+  });
   $('#dr_x').onclick = () => d.close();
   $('#dr_ok').onclick = () => {
     const t = { date: $('#dr_d').value || day, rating, notes: $('#dr_n').value.trim() };
+    if (drinking) { t.how = how; const to = $('#dr_to') ? $('#dr_to').value.trim() : ''; if (to) t.to = to; }
     d.close();
     cb(t);
   };
@@ -529,7 +542,7 @@ function bars(rows, fmt, opts) {
   return '<div class="bars">' + rows.map((r) => `<div class="bar"><span class="bl">${esc(r.l)}${r.s ? `<small>${esc(r.s)}</small>` : ''}</span><span class="bt"><i style="width:${r.v ? Math.max(2, (r.v / max) * 100).toFixed(1) : 0}%;${r.c ? 'background:' + r.c : ''}"></i></span><span class="bv">${esc(fmt ? fmt(r.v) : r.v)}</span></div>`).join('') + '</div>';
 }
 function stats() {
-  const all = Object.values(S.bottles), inC = all.filter((b) => inCellar(b)), drunk = all.filter((b) => b.drunk);
+  const all = Object.values(S.bottles), inC = all.filter((b) => inCellar(b)), drunk = all.filter(isDrinkExit), gone = all.filter((b) => b.drunk && !isDrinkExit(b));
   if (!all.length) return '<p class="empty">Aggiungi qualche bottiglia e qui vedrai le statistiche della cantina.</p>';
   const sum = (a, f) => a.reduce((t, b) => t + (f(b) || 0), 0);
   const spent = sum(inC, (b) => b.price), val = sum(inC, (b) => b.value ?? b.price);
@@ -560,7 +573,7 @@ function stats() {
   const avgR = rated.length ? (sum(rated, (b) => b.drunk.rating) / rated.length) : 0;
   const tile = (v, l, cls) => `<div class="tile"><b class="${cls || ''}">${v}</b><span>${l}</span></div>`;
   const sec = (t, body, note) => `<section class="stat"><h3>${t}</h3>${body}${note ? `<p class="info" style="margin:6px 0 0">${note}</p>` : ''}</section>`;
-  return `<div class="tiles">${tile(inC.length, 'bottiglie in cantina')}${tile(String(+litres.toFixed(1)).replace('.', ',') + ' L', 'di vino')}${tile(eur(val), 'valore stimato')}${tile(eur(spent), 'speso')}${tile((gain >= 0 ? '+' : '') + eur(gain), both.length ? 'differenza valore − prezzo (' + (gainPct >= 0 ? '+' : '') + Math.round(gainPct) + '%)' : 'serve prezzo e valore', gain >= 0 ? 'up' : 'down')}${(() => { const pe = all.filter((b) => !b.drunk && b.pending).length; return pe ? tile(pe, 'in arrivo') : ''; })()}${tile(drunk.length, 'bevute' + (avgR ? ' · voto medio ' + avgR.toFixed(1).replace('.', ',') + '★' : ''))}</div>`
+  return `<div class="tiles">${tile(inC.length, 'bottiglie in cantina')}${tile(String(+litres.toFixed(1)).replace('.', ',') + ' L', 'di vino')}${tile(eur(val), 'valore stimato')}${tile(eur(spent), 'speso')}${tile((gain >= 0 ? '+' : '') + eur(gain), both.length ? 'differenza valore − prezzo (' + (gainPct >= 0 ? '+' : '') + Math.round(gainPct) + '%)' : 'serve prezzo e valore', gain >= 0 ? 'up' : 'down')}${(() => { const pe = all.filter((b) => !b.drunk && b.pending).length; return pe ? tile(pe, 'in arrivo') : ''; })()}${gone.length ? tile(gone.length, 'regalate o uscite in altro modo') : ''}${tile(drunk.length, 'bevute' + (avgR ? ' · voto medio ' + avgR.toFixed(1).replace('.', ',') + '★' : ''))}</div>`
     + (() => { const ks = Object.keys(HIST).sort().slice(-12); return ks.length > 1 ? sec('Valore della cantina nel tempo', bars(ks.map((k) => ({ l: new Date(k + '-15').toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }), v: HIST[k].v || 0, s: HIST[k].n + ' bottiglie' })), eur), 'Un valore al mese, registrato quando apri l\'app.') : ''; })()
     + sec('Maturità', bars(mat))
     + sec('Per tipo', bars(byType))

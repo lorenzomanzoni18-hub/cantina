@@ -34,10 +34,13 @@ async function restoreSnapshot(key) {
   const j = await dbGet('kv', key);
   if (!j || !Array.isArray(j.bottles)) throw new Error('copia non trovata');
   const ids = new Set(j.bottles.map((b) => b.id));
-  for (const id of Object.keys(S.bottles)) if (!ids.has(id)) await dbDel('bottles', id);
+  const tomb = (await dbGet('kv', 'tomb')) || {};
+  for (const id of Object.keys(S.bottles)) if (!ids.has(id)) { await dbDel('bottles', id); tomb[id] = Date.now(); }
+  await dbPut('kv', tomb, 'tomb');
   S.bottles = {};
-  for (const b of j.bottles) { await dbPut('bottles', b); S.bottles[b.id] = b; }
+  for (const b of j.bottles) { b.upd = Date.now(); await dbPut('bottles', b); S.bottles[b.id] = b; }
   S.shelves = j.shelves || [];
+  if (typeof markMeta === 'function') { await markMeta('shelves'); await markMeta('glasses'); }
   await dbPut('kv', S.shelves, 'shelves');
   if (Array.isArray(j.glasses)) { GLASSES = j.glasses; await saveGlasses(); }
   render();
@@ -94,7 +97,7 @@ async function cloudBackup(onStep) {
     let n = 0, up = 0;
     for (const b of bs) {
       n++;
-      for (const s of ['c', 'f']) {
+      for (const s of ['c', 'f', 'r']) {
         const blob = await dbGet('photos', b.id + ':' + s);
         const k = b.id + ':' + s;
         if (!blob || sent[k] === blob.size) continue;
@@ -126,8 +129,9 @@ async function cloudRestore(onStep) {
   let n = 0;
   for (const b of j.bottles) {
     n++;
+    b.upd = Date.now(); // il ripristino vince sulle copie degli altri dispositivi
     await dbPut('bottles', b); S.bottles[b.id] = b;
-    for (const s of ['c', 'f']) {
+    for (const s of ['c', 'f', 'r']) {
       if (await dbGet('photos', b.id + ':' + s)) continue;
       step('Scarico le foto: ' + n + ' di ' + j.bottles.length + '…');
       try {
@@ -197,10 +201,12 @@ function backupSection() {
   <label>Frequenza</label><select id="bk_ev"><option value="30" ${c.every >= 30 ? 'selected' : ''}>Ogni mese</option><option value="7" ${c.every < 30 ? 'selected' : ''}>Ogni settimana</option></select>
   <div class="acts"><button class="btn pri" id="bk_save">Salva e fai il backup</button><button class="btn" id="bk_rest">Ripristina dal cloud</button></div>
   <p class="info" id="bk_m"></p>
+  ${typeof syncSection === 'function' ? syncSection() : ''}
   <h3 style="margin:16px 0 4px;font-size:16px">Backup a mano</h3>
   <p class="info">Un file con tutte le bottiglie, gli scaffali e le foto, da conservare dove vuoi (iCloud Drive, Mail).</p>`;
 }
 function bindBackupSection() {
+  if (typeof bindSyncSection === 'function') bindSyncSection();
   const st = async () => {
     try {
       const k = (await snapKeys())[0];
