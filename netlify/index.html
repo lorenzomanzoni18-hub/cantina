@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="it"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121010"><meta name="color-scheme" content="dark">
+<title>Cantina – nuovo indirizzo</title>
+<style>
+:root{--bg:#121010;--sf:#1C1817;--ink:#F2EBE3;--mute:#A39A92;--line:#2E2826;--gold:#D4AF6A;--wine:#9E2A44}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif;padding:max(48px,env(safe-area-inset-top)) 20px 40px;max-width:560px;margin-inline:auto}
+h1{font:700 34px/1.1 Georgia,serif;margin:0 0 10px}
+p{color:var(--mute);margin:0 0 14px}
+.card{background:var(--sf);border:1px solid var(--line);border-radius:16px;padding:16px;margin:16px 0}
+.btn{display:block;width:100%;box-sizing:border-box;text-align:center;border:0;border-radius:14px;padding:14px;font:600 16px system-ui;margin:10px 0;text-decoration:none;cursor:pointer}
+.pri{background:var(--wine);color:#fff}.sec{background:#241F1D;color:var(--ink);border:1px solid var(--line)}
+b{color:var(--ink)}ol{color:var(--mute);padding-left:20px}li{margin:6px 0}
+</style></head><body>
+<h1>La Cantina si è spostata</h1>
+<p>L'app ora vive a un nuovo indirizzo, dove riceve tutti gli aggiornamenti. Questo vecchio indirizzo non si aggiorna più.</p>
+<div class="card" id="box"><p>Controllo se qui ci sono ancora dati…</p></div>
+<a class="btn sec" href="https://lorenzomanzoni18-hub.github.io/cantina/">Vai alla nuova app</a>
+<div class="card"><p style="margin:0 0 6px"><b>Per avere l'icona giusta sull'iPhone</b></p>
+<ol><li>Tieni premuta la vecchia icona Cantina e scegli «Rimuovi app».</li>
+<li>Apri il nuovo indirizzo in Safari, tocca Condividi › «Aggiungi alla schermata Home».</li></ol></div>
+<script>
+const NEW = 'https://lorenzomanzoni18-hub.github.io/cantina/';
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+const box = document.getElementById('box');
+function openDB() { return new Promise((res, rej) => { const r = indexedDB.open('cantina'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+const all = (db, st, keys) => new Promise((res) => { try { const t = db.transaction(st, 'readonly').objectStore(st); const r = keys ? t.getAllKeys() : t.getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => res([]); } catch (_) { res([]); } });
+const get = (db, st, k) => new Promise((res) => { try { const r = db.transaction(st, 'readonly').objectStore(st).get(k); r.onsuccess = () => res(r.result); r.onerror = () => res(undefined); } catch (_) { res(undefined); } });
+const toURL = (b) => new Promise((res) => { const f = new FileReader(); f.onload = () => res(f.result); f.onerror = () => res(null); f.readAsDataURL(b); });
+(async () => {
+  let db, bottles = [];
+  try { db = await openDB(); bottles = db.objectStoreNames.contains('bottles') ? await all(db, 'bottles') : []; } catch (_) {}
+  if (!bottles.length) {
+    box.innerHTML = '<p style="margin:0">Qui non ci sono dati: ti porto alla nuova app…</p>';
+    setTimeout(() => { location.href = NEW; }, 1800);
+    return;
+  }
+  box.innerHTML = `<p>Su questo vecchio indirizzo ci sono ancora <b>${bottles.length} bottiglie</b>. Se non le hai già nella nuova app, salvale in un file e poi importale là.</p>
+  <button class="btn pri" id="save">Salva i dati in un file</button>
+  <p id="m" style="margin:6px 0 0"></p>
+  <p style="margin:12px 0 0">Poi apri la nuova app › Impostazioni › <b>Importa backup</b> e scegli il file.</p>`;
+  document.getElementById('save').onclick = async () => {
+    const m = document.getElementById('m'); m.textContent = 'Preparo il file…';
+    const out = [];
+    for (const b of bottles) {
+      const ph = {};
+      for (const k of ['c', 'f', 'r']) { const bl = db.objectStoreNames.contains('photos') ? await get(db, 'photos', b.id + ':' + k) : null; ph[k] = bl ? await toURL(bl) : null; }
+      out.push({ ...b, photoC: ph.c, photoF: ph.f, photoR: ph.r });
+    }
+    const kv = db.objectStoreNames.contains('kv');
+    const data = JSON.stringify({ app: 'cantina', version: 1, exported: new Date().toISOString(), shelves: (kv && await get(db, 'kv', 'shelves')) || [], glasses: (kv && await get(db, 'kv', 'glasses')) || [], bottles: out });
+    const file = new File([data], 'cantina-vecchio-indirizzo-' + new Date().toISOString().slice(0, 10) + '.json', { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: 'Backup cantina' }); m.textContent = 'File pronto: ora importalo nella nuova app.'; return; } catch (e) { if (e.name === 'AbortError') { m.textContent = ''; return; } } }
+    const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name; document.body.appendChild(a); a.click(); a.remove();
+    m.textContent = 'File scaricato: ora importalo nella nuova app.';
+  };
+})();
+</script>
+</body></html>
