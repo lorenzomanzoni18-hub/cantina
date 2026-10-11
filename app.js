@@ -94,7 +94,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '27';
+const APP_VERSION = '28';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -1231,7 +1231,7 @@ function openSettings() {
   <h3 style="margin:16px 0 4px;font-size:16px">Spazio sul telefono</h3>
   <p class="info">Alleggerisce le foto troppo grandi e toglie i doppioni, senza perdita visibile di qualità.</p>
   <div class="acts"><button class="btn" id="o_go">Ottimizza le foto</button></div><p class="info" id="o_msg"></p>
-  <p class="info">Versione dell'app: ${APP_VERSION}</p>
+  <p class="info">Versione dell'app: ${APP_VERSION} <button class="link" data-a="appupdate" type="button">Aggiorna adesso</button></p>
   <div class="acts"><button class="btn" id="c_close">Chiudi</button></div>`;
   const showState = () => { const cc = getCfg(); const k = cc.provider === 'anthropic' ? cc.anthropicKey : cc.geminiKey; $('#c_state').textContent = k ? 'Chiave salvata (' + k.slice(0, 4) + '…, ' + k.length + ' caratteri)' : 'Chiave mancante'; };
   showState();
@@ -1340,6 +1340,25 @@ async function importBackup(e) {
   } catch (err) { m.textContent = 'Importazione non riuscita: ' + err.message; }
 }
 
+/* ===== Aggiorna l'app senza chiuderla ===== */
+async function forceUpdate() {
+  msg('Cerco l\'ultima versione…');
+  try {
+    const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+    if (r) await r.update();
+  } catch (_) {}
+  // tolgo la copia salvata dei file dell'app (non i tuoi dati: bottiglie, foto e calici restano)
+  try { const ks = await caches.keys(); await Promise.all(ks.filter((k) => k.startsWith('cantina-v')).map((k) => caches.delete(k))); } catch (_) {}
+  try { sessionStorage.setItem('cantina.updatedFrom', APP_VERSION); } catch (_) {}
+  location.reload();
+}
+(function () {
+  try {
+    const from = sessionStorage.getItem('cantina.updatedFrom');
+    if (from) { sessionStorage.removeItem('cantina.updatedFrom'); setTimeout(() => { msg(from === APP_VERSION ? 'Hai già l\'ultima versione (' + APP_VERSION + ').' : 'Aggiornata alla versione ' + APP_VERSION + '.'); setTimeout(() => msg(''), 4000); }, 300); }
+  } catch (_) {}
+})();
+
 /* ===== Comandi ===== */
 document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-a]');
@@ -1349,6 +1368,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'new') openBottle(null, tab === 'lista' && flt.view === 'wish' ? { wish: true } : tab === 'lista' && flt.view === 'pend' ? { pending: true } : {});
   else if (a === 'newShelf') openShelf(null);
   else if (a === 'settings') openSettings();
+  else if (a === 'appupdate') forceUpdate();
   else if (a === 'day') { dayOff = t.dataset.o !== undefined ? +t.dataset.o : dayOff + (+t.dataset.d); syncCal(); render(); }
   else if (a === 'calday') { if (Date.now() - swallowClick < 400) return; dayOff = +t.dataset.o; render(); }
   else if (a === 'cal') calShift(+t.dataset.d);

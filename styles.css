@@ -366,3 +366,4 @@ nav button{font-size:10.5px}
 
 /* calici in vetro */
 .gcard .gsvg{filter:drop-shadow(0 6px 10px rgba(0,0,0,.45))}
+.topbtns{display:flex;gap:8px}

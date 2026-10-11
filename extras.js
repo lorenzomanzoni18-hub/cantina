@@ -1,4 +1,4 @@
-/* Pagine aggiuntive: Luna, Stasera, Mappa, "Ho bevuto" e inventario PDF. */
+/* Pagine aggiuntive: Luna, Sommelier (ex Stasera), Mappa, "Ho bevuto" e inventario PDF. */
 
 /* ===== Luna ===== */
 function moonChip() {
@@ -112,11 +112,14 @@ document.addEventListener('input', (e) => {
   if (e.target.id === 'guests') guests = Math.max(1, Math.min(60, +e.target.value || 1));
 });
 
+// Il momento della giornata: i consigli valgono per pranzo, aperitivo o cena.
+function mealNow() { const h = new Date().getHours(); return h < 5 ? 'cena' : h < 11 ? 'colazione' : h < 16 ? 'pranzo' : h < 19 ? 'aperitivo' : 'cena'; }
+function mealLabel() { return { colazione: 'Oggi', pranzo: 'A pranzo', aperitivo: 'All\'aperitivo', cena: 'Stasera' }[mealNow()]; }
 function stasera() {
   const c = kind(Date.now()), good = isGood(c);
   const n = Object.values(S.bottles).filter((b) => inCellar(b)).length;
   const seg = `<div class="seg"><button data-a="pmode" data-m="dish" aria-pressed="${pairMode === 'dish'}">Un piatto</button><button data-a="pmode" data-m="menu" aria-pressed="${pairMode === 'menu'}">Un menu</button><button data-a="pmode" data-m="ask" aria-pressed="${pairMode === 'ask'}">Chiedi</button></div>`;
-  const head = keyBanner() + `<button class="qc glassbtn" data-a="glasses"><span class="qi wait"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10l-1 7a4 4 0 0 1-8 0zM12 14v6M8 21h8"/></svg></span><span><b>I miei calici</b><small>${GLASSES.length ? GLASSES.length + ' calici: tocca per vederli e sapere cosa servirci' : 'Fotografali e li riconosco io: poi ti dico cosa servirci'}</small></span></button><div class="note"><b>Stasera</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
+  const head = keyBanner() + `<button class="qc glassbtn" data-a="glasses"><span class="qi wait"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10l-1 7a4 4 0 0 1-8 0zM12 14v6M8 21h8"/></svg></span><span><b>I miei calici</b><small>${GLASSES.length ? GLASSES.length + ' calici: tocca per vederli e sapere cosa servirci' : 'Fotografali e li riconosco io: poi ti dico cosa servirci'}</small></span></button><div class="note"><b>${mealLabel()}</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
   if (pairMode === 'ask') return head + askView();
   if (pairMode === 'menu') return head + `<label for="menu">Il menu, una portata per riga</label>
   <textarea id="menu" rows="6" placeholder="Aperitivo: crudo di gamberi e ostriche&#10;Primo: risotto ai funghi porcini&#10;Secondo: guancia di manzo brasata&#10;Formaggi: pecorino stagionato&#10;Dolce: tarte tatin">${esc(menuText)}</textarea>
@@ -168,7 +171,7 @@ async function pairNow() {
     try {
       const lab = { 'st-now': 'pronta da bere', 'st-wait': 'da aspettare', 'st-past': 'oltre il picco' };
       const list = cands.map((b) => ({ id: b.id, nome: name(b), annata: b.vintage || null, tipo: b.type, formato: sizeName(sizeMl(b)), zona: b.region || '', stato: lab[status(b)] || '', abbinamenti: (b.pairing || '').slice(0, 140), note: (b.winfo || '').slice(0, 120) }));
-      const j = await aiJson(`Sei un sommelier. Devo mangiare questo: "${dishText.trim()}". Oggi la Luna è in ${c[1]} (giorno ${c[2]}, ${good ? 'favorevole' : 'poco favorevole'} per bere secondo il calendario biodinamico: puoi citarlo in una frase al massimo, senza dargli troppo peso).
+      const j = await aiJson(`Sei un sommelier. È il momento ${{ colazione: 'della mattina', pranzo: 'del pranzo', aperitivo: 'dell\'aperitivo', cena: 'della cena' }[mealNow()]}: tienine conto (a pranzo e all'aperitivo preferisci vini più leggeri e freschi, salvo richieste diverse). Devo mangiare questo: "${dishText.trim()}". Oggi la Luna è in ${c[1]} (giorno ${c[2]}, ${good ? 'favorevole' : 'poco favorevole'} per bere secondo il calendario biodinamico: puoi citarlo in una frase al massimo, senza dargli troppo peso).
 Scegli da 1 a 3 bottiglie SOLO da questa lista, usando gli id esatti, preferendo quelle pronte da bere e con un abbinamento coerente. Per ognuna spiega in 1-2 frasi concrete perché va col piatto. Non inventare dati sul vino che non sono nella lista. Rispondi solo con JSON: {"picks":[{"id":string,"reason":string}],"note":string}.
 Lista: ${JSON.stringify(list)}`);
       picks = (j.picks || []).filter((p) => S.bottles[p.id] && inCellar(S.bottles[p.id])).slice(0, 3);
@@ -201,7 +204,7 @@ async function pairMenu() {
     const list = cands.map((b) => ({ id: b.id, nome: name(b), annata: b.vintage || null, tipo: b.type, formato: sizeName(sizeMl(b)), calici: glasses(sizeMl(b)), zona: b.region || '', stato: lab[status(b)] || '', abbinamenti: (b.pairing || '').slice(0, 120), note: (b.winfo || '').slice(0, 100) }));
     aiWaitNote = (sec) => { out.innerHTML = '<p class="info">Gemini chiede una pausa: riprovo tra ' + sec + ' secondi…</p>'; };
     try {
-      const j = await aiJson(`Sei il sommelier di un ristorante e lavori con uno chef. Stasera c'è questo menu per ${guests} persone, una portata per riga:
+      const j = await aiJson(`Sei il sommelier di un ristorante e lavori con uno chef. C'è questo menu per ${guests} persone, una portata per riga:
 ${courses.map((c, i) => (i + 1) + '. ' + c).join('\n')}
 Componi la sequenza dei vini scegliendo SOLO dalla lista qui sotto (usa gli id esatti). Regole: segui una progressione sensata (dal più leggero al più strutturato, bollicine all'inizio, vini dolci o passiti col dolce), preferisci bottiglie pronte da bere, puoi usare lo stesso vino per due portate vicine se è l'abbinamento migliore. Considera che ogni persona beve circa un calice da 120 ml a portata: indica quante bottiglie aprire di ciascun vino (un magnum vale due bottiglie). Per ogni portata spiega in 1-2 frasi concrete perché quel vino va col piatto, e dai un consiglio di servizio (temperatura, se decantare e quanto prima aprirla). Indica anche quale calice usare scegliendo tra quelli che ha: ${glassesForAI()}. Se non ne ha uno adatto, suggerisci la forma ideale. Tieni conto di quanti pezzi ha di ciascun calice rispetto alle persone. Se per una portata nessun vino della lista è adatto, metti id null e suggerisci in "reason" che tipo di vino servirebbe. Non inventare dati che non sono nella lista.
 Rispondi solo con JSON: {"seq":[{"course":string,"id":string|null,"bottles":number,"reason":string,"service":string,"glass":string}],"note":string}
@@ -230,7 +233,7 @@ Lista: ${JSON.stringify(list)}`);
 /* ===== Il sommelier: domande libere sulla cantina ===== */
 let askLog = [], askBusy = false, askDraft = '';
 document.addEventListener('input', (e) => { if (e.target && e.target.id === 'ask') askDraft = e.target.value; });
-const ASK_EX = ['Quali bottiglie dovrei aprire per prime?', 'Cosa porto a cena da un amico che ama la Borgogna?', 'Che vino apro stasera con una pizza?', 'Che cosa manca nella mia cantina?'];
+const ASK_EX = ['Quali bottiglie dovrei aprire per prime?', 'Cosa porto a cena da un amico che ama la Borgogna?', 'Cosa apro per un aperitivo con salumi e formaggi?', 'Che cosa manca nella mia cantina?'];
 function askView() {
   const n = uniqW(Object.values(S.bottles).filter(inCellar)).length;
   const log = askLog.map((x) => `<div class="qa"><p class="q">${esc(x.q)}</p>${x.err ? `<p class="info">${esc(x.err)}</p>` : `<div class="a">${esc(x.a).replace(/\n/g, '<br>')}</div>${(x.ids || []).filter((id) => S.bottles[id]).map((id) => pairCard(S.bottles[id], '')).join('')}`}</div>`).join('');
