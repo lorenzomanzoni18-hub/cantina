@@ -119,10 +119,10 @@ function openWizard() {
   <p class="info">Usiamo GitHub, gratuito: i dati vanno in un tuo archivio privato che vedi solo tu. Segui i passi in ordine; i link si aprono già compilati.</p>
   <ol class="wz">
     <li><b>Entra in GitHub</b> o crea un account gratuito.<div class="acts"><a class="btn" href="https://github.com/login" target="_blank" rel="noopener">Accedi</a><a class="btn" href="https://github.com/signup" target="_blank" rel="noopener">Crea account</a></div></li>
-    <li><b>Crea l'archivio privato.</b> Si apre già con nome <i>cantina-backup</i> e impostato su Privato: premi <b>Create repository</b> in fondo.<div class="acts"><a class="btn" href="https://github.com/new?name=cantina-backup&amp;visibility=private&amp;description=Backup%20dell%27app%20Cantina" target="_blank" rel="noopener">Crea l'archivio</a></div></li>
+    <li><b>Crea l'archivio privato.</b> Si apre già con nome <i>cantina-backup</i> e impostato su Privato: premi <b>Create repository</b> in fondo.<div class="acts"><a class="btn" href="https://github.com/new?owner=lorenzomanzoni18-hub&amp;name=cantina-backup&amp;visibility=private&amp;description=Backup%20dell%27app%20Cantina" target="_blank" rel="noopener">Crea l'archivio</a></div></li>
     <li><b>Crea la chiave di accesso.</b> Si apre già compilata (nome, nessuna scadenza, permesso di scrivere). Devi solo scegliere, in <b>Repository access</b>, <b>Only select repositories</b> › <i>cantina-backup</i>, poi premere <b>Generate token</b> e copiarlo.<div class="acts"><a class="btn" href="https://github.com/settings/personal-access-tokens/new?name=App%20Cantina&amp;description=Backup%20e%20sincronizzazione%20dell%27app%20Cantina&amp;expires_in=none&amp;contents=write" target="_blank" rel="noopener">Crea la chiave</a></div></li>
     <li><b>Incolla qui</b> il tuo nome utente GitHub e la chiave.
-      <label>Nome utente GitHub</label><input id="wz_u" autocomplete="off" autocapitalize="none" placeholder="es. lorenzomanzoni" value="${esc(u0 || '')}">
+      <label>Nome utente GitHub</label><input id="wz_u" autocomplete="off" autocapitalize="none" placeholder="es. lorenzomanzoni" value="${esc(u0 || 'lorenzomanzoni18-hub')}">
       <label>Nome dell'archivio</label><input id="wz_r" autocomplete="off" autocapitalize="none" value="${esc(r0 || 'cantina-backup')}">
       <label>Chiave (token)</label><input id="wz_t" type="password" autocomplete="off" placeholder="github_pat_…" value="${esc(c.token || '')}"></li>
   </ol>
