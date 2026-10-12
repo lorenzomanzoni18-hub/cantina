@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '33';
+const APP_VERSION = '34';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -422,7 +422,7 @@ function render() {
     calici: ['Calici', GLASSES.length ? GLASSES.length + (GLASSES.length === 1 ? ' calice' : ' calici') : 'I tuoi bicchieri'],
     luna: ['Luna', 'Calendario biodinamico'],
     stats: ['Statistiche', '‹ Cantina', 'cantina'],
-    mappa: ['Mappa', '‹ Statistiche', 'stats'],
+    mappa: ['Mappa', 'Dove nascono i tuoi vini'],
   }[tab] || ['Cantina', ''];
   $('#ptitle').textContent = H[0];
   const eb = $('#eyebrow');
@@ -430,7 +430,7 @@ function render() {
   if (H[2]) { eb.dataset.a = 'tab'; eb.dataset.t = H[2]; eb.classList.add('back'); eb.tabIndex = 0; } else { delete eb.dataset.a; eb.classList.remove('back'); eb.tabIndex = -1; }
   document.body.dataset.tab = tab;
   $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
-  const navT = tab === 'stats' || tab === 'mappa' ? 'cantina' : tab;
+  const navT = tab === 'stats' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
   const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
   $('#app').innerHTML = (pages[tab] || cantina)();
