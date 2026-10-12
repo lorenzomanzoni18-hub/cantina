@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '37';
+const APP_VERSION = '38';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -253,23 +253,38 @@ async function aiJson(prompt, image) {
   return o;
 }
 
+let lastSearchNote = '';
 async function aiSearch(prompt) {
   const c = getCfg();
   let text = '', links = [];
   if (c.provider === 'anthropic') {
-    // ricerca web di Claude: circa 1 centesimo per ricerca, al massimo 2 ricerche per domanda
-    const call = (tool) => fetch('https://api.anthropic.com/v1/messages', {
+    // ricerca web di Claude: circa 1 centesimo per ricerca, al massimo 4 ricerche per domanda
+    let tool = 'web_search_20250305';
+    const msgs = [{ role: 'user', content: prompt }];
+    const call = () => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': c.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 2000, tools: [{ type: tool, name: 'web_search', max_uses: 2 }], messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 6000, tools: [{ type: tool, name: 'web_search', max_uses: 4 }], messages: msgs }),
     });
-    let r = await call('web_search_20250305'), j = await r.json().catch(() => ({}));
-    if (r.status === 400 && /web_search|tool/i.test((j.error && j.error.message) || '')) { r = await call('web_search_20260209'); j = await r.json().catch(() => ({})); }
-    if (!r.ok) throw new Error((j.error && j.error.message) || 'Errore ' + r.status);
-    for (const x of j.content || []) {
-      if (x.type === 'text') text += x.text || '';
+    let all = [];
+    for (let turn = 0; turn < 3; turn++) {
+      let r = await call(), j = await r.json().catch(() => ({}));
+      if (r.status === 400 && turn === 0 && /web_search|tool/i.test((j.error && j.error.message) || '')) { tool = 'web_search_20260209'; r = await call(); j = await r.json().catch(() => ({})); }
+      if (!r.ok) throw new Error((j.error && j.error.message) || 'Errore ' + r.status);
+      all = all.concat(j.content || []);
+      // ricerche lunghe: Claude si ferma a metà ("pause_turn") e va fatto proseguire
+      if (j.stop_reason === 'pause_turn') { msgs.push({ role: 'assistant', content: j.content }); continue; }
+      if (j.stop_reason === 'max_tokens') lastSearchNote = 'risposta troppo lunga, tagliata';
+      break;
+    }
+    // il testo utile è quello scritto dopo l'ultima ricerca (prima ci sono solo frasi tipo "Cerco...")
+    let lastRes = -1; all.forEach((x, i) => { if (x.type === 'web_search_tool_result') lastRes = i; });
+    for (let i = 0; i < all.length; i++) {
+      const x = all[i];
+      if (x.type === 'text' && i > lastRes) text += x.text || '';
       if (x.type === 'web_search_tool_result' && Array.isArray(x.content)) x.content.forEach((y) => y.url && links.push({ t: y.title || y.url, u: y.url }));
     }
+    if (!text.trim()) text = all.filter((x) => x.type === 'text').map((x) => x.text || '').join('');
   } else {
     let j;
     try { j = await gemCall({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }, true); }
@@ -304,42 +319,54 @@ Campi informativi:
 "drink_text": 1-2 frasi su quando berla, in base a tipo di vino, annata e parere comune di critici e guide: indica la finestra con anni, il picco e se è pronta adesso o da aspettare;
 "drink_from" e "drink_to": anni (numeri) di inizio e fine della finestra ideale, oppure null;
 "pairing": 3-4 abbinamenti migliori, in una frase breve;
-"price_eur": prezzo indicativo di mercato in euro per una bottiglia nel formato ${sizeName(ml || 750)}, oppure null se incerto.`;
+"price_eur": prezzo indicativo di mercato in euro per una bottiglia nel formato ${sizeName(ml || 750)}, oppure null se incerto;
+"grapes": uvaggio con le percentuali se note (es. "Nebbiolo 100%", "Chardonnay 60%, Pinot Noir 40%"); se non è scritto ma è noto per questa cuvée o imposto dal disciplinare scrivilo comunque; null solo se davvero non si sa;
+"abv": gradazione alcolica in % (numero) se scritta o nota per questo vino, altrimenti null;
+"disgorgement": solo per spumanti metodo classico/Champagne: data di sboccatura (dégorgement) se scritta in etichetta, controetichetta o capsula (es. "03/2022", "Q2 2021"), altrimenti null;
+"dosage": solo per spumanti: dosaggio (es. "Extra Brut", "Brut Nature 0 g/l", "Brut 6 g/l") se scritto o noto, altrimenti null.`;
 
 function scanPrompt() {
   return `Questa è la foto di una bottiglia o di un'etichetta di vino. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
-{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box_2d":[ymin,xmin,ymax,xmax]|null,"label_box_2d":[ymin,xmin,ymax,xmax]|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"size_ml":number|null}
+{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box_2d":[ymin,xmin,ymax,xmax]|null,"label_box_2d":[ymin,xmin,ymax,xmax]|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"size_ml":number|null,"grapes":string|null,"abv":number|null,"disgorgement":string|null,"dosage":string|null}
 "size_ml" è la capacità della bottiglia in millilitri se scritta sull'etichetta o riconoscibile con certezza (es. 750, 375, 1500), altrimenti null.
 "box_2d" è il rettangolo che contiene la bottiglia intera (o solo l'etichetta se la bottiglia non si vede): quattro numeri interi [ymin, xmin, ymax, xmax] da 0 a 1000, dove 0,0 è l'angolo in alto a sinistra dell'immagine e 1000,1000 quello in basso a destra. "label_box_2d" è il rettangolo stretto della sola etichetta frontale principale (senza collo, capsula o sfondo), nello stesso formato; null se l'etichetta non si vede. Misura con precisione: il ritaglio deve essere centrato sull'etichetta. "quality" è "scarsa" se la foto è sfocata, buia, tagliata o l'etichetta è poco leggibile. "barcode" contiene solo le cifre del codice a barre, se leggibili. Per produttore, cuvée, annata, zona e codice usa null se non li leggi con certezza.
 ${infoRules(750)}`;
 }
 function deepPrompt(b) {
-  return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}, formato ${sizeName(b.size || 750)}. Siamo nel ${new Date().getFullYear()}.
+  return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}${b.disg ? ', sboccatura ' + b.disg : ''}${b.dosage ? ', dosaggio ' + b.dosage : ''}, formato ${sizeName(b.size || 750)}. Siamo nel ${new Date().getFullYear()}.
 Consulta il sito del produttore, guide e riviste, Wine-Searcher, Vivino, CellarTracker, enoteche e case d'asta.
 Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
-{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"production":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
+{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"grapes":string|null,"abv":number|null,"dosage":string|null,"producer_info":string,"wine_info":string,"production":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
+- grapes: uvaggio con percentuali (es. "Sangiovese 100%"), dalla scheda tecnica del produttore se la trovi; dosage solo per spumanti (es. "Extra Brut 3 g/l"); abv gradazione in %.
 - producer_info: storia, proprietà, ettari e filosofia dell'azienda, 5-8 frasi.
 - wine_info: uve e percentuali, vigneto (suolo, altitudine, esposizione), vinificazione, affinamento (contenitori e mesi), gradazione alcolica, stile e profilo di degustazione, 5-8 frasi.
 - production: numero di bottiglie prodotte per questa annata (o la produzione media annua) e resa, solo se lo trovi in una fonte; altrimenti "Dato non reperito".
 - vintage_info: andamento climatico dell'annata nella zona e giudizio generale, con eventuali punteggi di critici con la fonte.
 - price_eur: prezzo medio di mercato attuale in euro per UNA bottiglia nel formato ${sizeName(b.size || 750)} di QUESTA annata (se trovi solo il prezzo da 75 cl e il formato è diverso, rapportalo e dillo in price_note), preso da Wine-Searcher, aste o enoteche. Non stimarlo a memoria: se non trovi un prezzo per questa annata usa null.
+- Per gli spumanti metodo classico tieni conto della data di sboccatura (se indicata) per dire quando berlo: di solito dà il meglio da 1-2 anni dopo la sboccatura.
 - price_note: fonte e fascia di prezzo trovate, per esempio "Wine-Searcher: 85-120 €, media 98 €".
 Regole: scrivi in italiano. Riporta solo ciò che trovi nelle fonti; per ogni dato che non trovi scrivi "Dato non reperito" invece di inventare. Cita la fonte tra parentesi per i numeri importanti. Se non conosci questo vino in particolare, dillo e inizia il testo con "Indicazione generica:".`;
 }
 async function deepInfo(b) {
-  let limited = false;
+  let limited = false, why = '';
   try {
+    lastSearchNote = '';
     const r = await aiSearch(deepPrompt(b));
     const j = parseJsonLoose(r.text);
     if (j) return { j, links: r.links, deep: true };
-  } catch (e) { if (/api key|api_key|permission|failed to fetch|network|load failed/i.test(e.message)) throw e; limited = !!e.quota || /quota|429|exhausted|rate/i.test(e.message); }
+    why = lastSearchNote || 'la risposta della ricerca non era leggibile';
+  } catch (e) {
+    if (/api key|api_key|permission|failed to fetch|network|load failed|credit balance/i.test(e.message)) throw e;
+    limited = !!e.quota || /quota|429|exhausted|rate/i.test(e.message);
+    why = e.nosearch ? 'Gemini gratuito non include la ricerca web' : e.message;
+  }
   const j = await aiJson(enrichPrompt(b));
   if (j) j.price_eur = null;
-  return { j, links: [], deep: false, limited };
+  return { j, links: [], deep: false, limited, why };
 }
 function enrichPrompt(b) {
   return `Bottiglia di vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}, tipo ${b.type}, formato ${sizeName(b.size || 750)}, zona ${b.region || 'non indicata'}. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
-{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null}
+{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"grapes":string|null,"abv":number|null,"dosage":string|null}
 ${infoRules(b.size)}`;
 }
 
@@ -390,7 +417,7 @@ const widOf = (b) => b.wid || b.id;
 function siblings(b) { const w = widOf(b); return Object.values(S.bottles).filter((x) => x.id !== b.id && widOf(x) === w); }
 function groupOf(b) { const w = widOf(b); return Object.values(S.bottles).filter((x) => widOf(x) === w); }
 const uniqW = (arr) => { const seen = new Set(); return arr.filter((b) => { const w = widOf(b); if (seen.has(w)) return false; seen.add(w); return true; }); };
-const SHARED = ['producer', 'cuvee', 'vintage', 'type', 'size', 'region', 'price', 'value', 'valueAuto', 'valueNote', 'drink', 'drinkFrom', 'drinkTo', 'pairing', 'info', 'winfo', 'vinfo', 'prod', 'srcLinks', 'touched', 'thumb', 'useFull', 'barcode', 'aiAt', 'aiDeep', 'buyDate', 'buyWhere', 'buyNote', 'tags', 'tastings', 'grapes', 'abv', 'lot'];
+const SHARED = ['producer', 'cuvee', 'vintage', 'type', 'size', 'region', 'price', 'value', 'valueAuto', 'valueNote', 'drink', 'drinkFrom', 'drinkTo', 'pairing', 'info', 'winfo', 'vinfo', 'prod', 'srcLinks', 'touched', 'thumb', 'useFull', 'barcode', 'aiAt', 'aiDeep', 'buyDate', 'buyWhere', 'buyNote', 'tags', 'tastings', 'grapes', 'abv', 'lot', 'disg', 'dosage'];
 async function syncGroup(nb) {
   for (const x of siblings(nb)) {
     const y = { ...x };
@@ -819,6 +846,8 @@ async function openBottle(id, pre) {
   <div class="fr"><label for="f_region">Zona</label><input id="f_region" placeholder="Denominazione" value="${esc(b.region)}"></div>
   <div class="fr"><label for="f_grapes">Uvaggio</label><input id="f_grapes" placeholder="es. Nebbiolo 100%" value="${esc(b.grapes)}"></div>
   <div class="fr"><label for="f_abv">Gradazione %</label><input id="f_abv" inputmode="decimal" placeholder="es. 14" value="${esc(b.abv)}"></div>
+  <div class="fr spk"><label for="f_disg">Sboccatura</label><input id="f_disg" placeholder="es. 03/2022" value="${esc(b.disg)}"></div>
+  <div class="fr spk"><label for="f_dosage">Dosaggio</label><input id="f_dosage" placeholder="es. Extra Brut 3 g/l" value="${esc(b.dosage)}"></div>
   </div>
 
   ${b.drunk ? '' : `<h4 class="gh">Stato e posizione</h4><div class="grp">
@@ -874,7 +903,8 @@ async function openBottle(id, pre) {
   };
   const touched = new Set(b.touched || []);
   let typeTouched = !!id;
-  $('#f_type').addEventListener('change', () => { typeTouched = true; });
+  $('#f_type').addEventListener('change', () => { typeTouched = true; showSparkling(); });
+  showSparkling();
   ['info', 'winfo', 'vinfo', 'prod', 'pairing', 'drink'].forEach((f) => $('#f_' + f).addEventListener('input', () => touched.add(f)));
   $('#f_drink').addEventListener('input', () => { dFrom = dTo = null; });
 
@@ -929,11 +959,15 @@ async function openBottle(id, pre) {
   $('#f_value').addEventListener('input', () => { autoVal = false; valueNote = ''; $('#f_basis').textContent = ''; });
 
   // Compila solo i campi che non hai scritto tu e mai il valore che hai inserito a mano.
+  function showSparkling() { const on = $('#f_type').value === 'bollicine' || !!(g('disg') || g('dosage')); document.querySelectorAll('#dlg .spk').forEach((x) => { x.hidden = !on; }); }
   const applyInfo = (j) => {
     const put = (f, v) => { if (v && typeof v === 'string' && !touched.has(f)) $('#f_' + f).value = v; };
     if (j.region && typeof j.region === 'string' && !$('#f_region').value.trim()) $('#f_region').value = j.region;
     if (!typeTouched && ['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
     put('info', j.producer_info); put('winfo', j.wine_info); put('prod', j.production); put('vinfo', j.vintage_info); put('pairing', j.pairing);
+    const empty = (f, v) => { const el = $('#f_' + f); if (el && v != null && String(v).trim() && !el.value.trim()) el.value = String(v).trim(); };
+    empty('grapes', j.grapes); empty('abv', Number(j.abv) > 0 ? String(j.abv).replace('.', ',') : null); empty('disg', j.disgorgement); empty('dosage', j.dosage);
+    showSparkling();
     if (j.drink_text && !touched.has('drink')) {
       $('#f_drink').value = j.drink_text;
       dFrom = Number.isInteger(j.drink_from) ? j.drink_from : null;
@@ -975,12 +1009,12 @@ async function openBottle(id, pre) {
     scs('Cerco informazioni approfondite online… può volerci fino a un minuto.');
     aiWaitNote = (s) => scs('Gemini chiede una pausa: riprovo da solo tra ' + s + ' secondi…');
     try {
-      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf() });
+      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf(), disg: g('disg'), dosage: g('dosage') });
       applyInfo(r.j); updDW(); updHead();
       aiAt = Date.now(); aiDeep = !!r.deep;
       if (r.links.length) { srcLinks = r.links; showSrc(); }
       const lab = await findLabel(true);
-      scs((r.deep ? 'Fatto, con ricerca online: controlla le fonti in fondo e i dati importanti.' : (r.limited ? 'Limite gratuito della ricerca web raggiunto: ho usato solo le conoscenze dell\'IA, senza fonti e senza aggiornare il valore. Riprova più tardi con "Cerca dati ed etichetta".' : 'Fatto, ma senza ricerca online (non disponibile): sono stime dell\'IA, controllale.')) + lab);
+      scs((r.deep ? 'Fatto, con ricerca online: controlla le fonti in fondo e i dati importanti.' : (r.limited ? 'Limite gratuito della ricerca web raggiunto: ho usato solo le conoscenze dell\'IA, senza fonti e senza aggiornare il valore. Riprova più tardi con "Cerca dati ed etichetta".' : 'Fatto, ma senza ricerca online' + (r.why ? ' (motivo: ' + r.why + ')' : '') + ': sono stime dell\'IA, controllale.')) + lab);
     } catch (e) {
       scs('Ricerca non riuscita: ' + e.message);
       notice('Ricerca non riuscita', esc(errorHint(e.message)) + '<br><br><small>Dettaglio: ' + esc(e.message) + '</small>', [{ t: 'Chiudi', pri: true }]);
@@ -1004,9 +1038,9 @@ async function openBottle(id, pre) {
     scs('Leggo la retro-etichetta…');
     aiWaitNote = (sec) => scs('Gemini chiede una pausa: riprovo tra ' + sec + ' secondi…');
     try {
-      const j = await aiJson(`Questa è la retro-etichetta (o la controetichetta) di una bottiglia di vino. Leggi solo ciò che è scritto, senza inventare. Rispondi solo con JSON: {"grapes": string|null (uvaggio con percentuali se indicate), "abv": number|null (gradazione alcolica in %), "lot": string|null (numero di lotto, spesso dopo "L."), "size_ml": number|null, "notes": string|null (in 1-2 frasi altre informazioni utili scritte in etichetta: affinamento, vigneto, temperatura di servizio, abbinamenti; null se non ci sono)}`, await toB64(file, 1600));
+      const j = await aiJson(`Questa è la retro-etichetta (o la controetichetta) di una bottiglia di vino. Leggi solo ciò che è scritto, senza inventare. Rispondi solo con JSON: {"grapes": string|null (uvaggio con percentuali se indicate), "abv": number|null (gradazione alcolica in %), "lot": string|null (numero di lotto, spesso dopo "L."), "disgorgement": string|null (data di sboccatura/dégorgement/"dégorgé le", solo spumanti), "dosage": string|null (dosaggio, es. "Extra Brut", "dosage 3 g/l"), "size_ml": number|null, "notes": string|null (in 1-2 frasi altre informazioni utili scritte in etichetta: affinamento, vigneto, temperatura di servizio, abbinamenti; null se non ci sono)}`, await toB64(file, 1600));
       const fill = (k, v) => { if (v !== null && v !== undefined && v !== '' && !$('#f_' + k).value.trim()) $('#f_' + k).value = v; };
-      fill('grapes', j.grapes); fill('abv', j.abv); fill('lot', j.lot);
+      fill('grapes', j.grapes); fill('abv', j.abv); fill('lot', j.lot); fill('disg', j.disgorgement); fill('dosage', j.dosage);
       if (j.size_ml) setSize(j.size_ml);
       if (j.notes && typeof j.notes === 'string' && !touched.has('winfo')) { const w = $('#f_winfo'); if (!w.value.includes(j.notes)) w.value = (w.value ? w.value.trim() + '\n\n' : '') + 'Dalla retro-etichetta: ' + j.notes; }
       updHead();
@@ -1158,7 +1192,7 @@ async function openBottle(id, pre) {
     const nb = {
       ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
       price: num(g('price')), value: num(g('value')), valueAuto: autoVal && g('value') !== '',
-      buyDate: g('bdate'), buyWhere: g('bwhere'), buyNote: g('bnote'), grapes: g('grapes'), abv: num(g('abv')), lot: g('lot'),
+      buyDate: g('bdate'), buyWhere: g('bwhere'), buyNote: g('bnote'), grapes: g('grapes'), abv: num(g('abv')), lot: g('lot'), disg: g('disg'), dosage: g('dosage'),
       tags: [...new Set($('#f_tags').value.split(',').map((t) => t.trim()).filter(Boolean))], tastings: tastings.slice(),
       drink: g('drink'), drinkFrom: dFrom, drinkTo: dTo, pairing: g('pairing'),
       info: g('info'), winfo: g('winfo'), vinfo: g('vinfo'), prod: g('prod'), srcLinks, valueNote: autoVal && g('value') !== '' ? valueNote : '', touched: [...touched],
@@ -1278,12 +1312,15 @@ function openShelf(id) {
 /* ===== Impostazioni e backup ===== */
 async function enrichRecord(b0) {
   const b = { ...b0 };
-  const r = await deepInfo({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size });
+  const r = await deepInfo({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size, disg: b.disg, dosage: b.dosage });
   const j = r.j || {};
   const t = new Set(b.touched || []);
   const put = (k, f) => { if (typeof j[f] === 'string' && j[f].trim() && !t.has(k)) b[k] = j[f].trim(); };
   put('info', 'producer_info'); put('winfo', 'wine_info'); put('prod', 'production'); put('vinfo', 'vintage_info'); put('pairing', 'pairing');
   if (j.region && !b.region) b.region = j.region;
+  if (!b.grapes && typeof j.grapes === 'string' && j.grapes.trim()) b.grapes = j.grapes.trim();
+  if (!b.abv && Number(j.abv) > 0) b.abv = Number(j.abv);
+  if (!b.dosage && typeof j.dosage === 'string' && j.dosage.trim()) b.dosage = j.dosage.trim();
   if (j.drink_text && !t.has('drink')) {
     b.drink = j.drink_text;
     b.drinkFrom = Number.isInteger(j.drink_from) ? j.drink_from : null;
@@ -1308,11 +1345,44 @@ async function enrichRecord(b0) {
 }
 // Una bottiglia è "incompleta" se l'IA non l'ha mai elaborata e le mancano le informazioni.
 const incomplete = (b) => (b.producer || b.cuvee) && !b.drunk && !b.aiAt && (!b.prod || !b.info);
+const noGrapes = (b) => (b.producer || b.cuvee) && !b.drunk && (!b.grapes || (b.type === 'bollicine' && !b.dosage));
+/* Uvaggio, gradazione e dosaggio per le bottiglie che non li hanno: 15 vini per richiesta, senza ricerca web, costa quasi nulla. */
+async function fillGrapes(onStep) {
+  const todo = uniqW(Object.values(S.bottles).filter(noGrapes));
+  let done = 0;
+  for (let i = 0; i < todo.length; i += 15) {
+    const part = todo.slice(i, i + 15);
+    if (onStep) onStep('Uvaggi: ' + Math.min(i + 15, todo.length) + ' di ' + todo.length + '…');
+    const list = part.map((b, k) => k + ': ' + [b.producer, b.cuvee, b.vintage, b.region, b.type].filter(Boolean).join(' · ')).join('\n');
+    const j = await aiJson(`Per ciascun vino dell'elenco indica uvaggio (con percentuali se note), gradazione alcolica tipica e, solo per gli spumanti, il dosaggio. Usa le tue conoscenze: la scheda tecnica del produttore o il disciplinare della denominazione. Non inventare: se non lo sai, null.
+${list}
+Rispondi solo con JSON: {"items":[{"i":numero,"grapes":string|null,"abv":number|null,"dosage":string|null}]}`);
+    for (const it of (j.items || [])) {
+      const b0 = part[it.i]; if (!b0) continue;
+      const cur = S.bottles[b0.id]; if (!cur) continue;
+      const b = { ...cur };
+      if (!b.grapes && typeof it.grapes === 'string' && it.grapes.trim()) b.grapes = it.grapes.trim();
+      if (!b.abv && Number(it.abv) > 0) b.abv = Number(it.abv);
+      if (b.type === 'bollicine' && !b.dosage && typeof it.dosage === 'string' && it.dosage.trim()) b.dosage = it.dosage.trim();
+      if (b.grapes !== cur.grapes || b.abv !== cur.abv || b.dosage !== cur.dosage) { await persistBottle(b); await syncGroup(b); done++; }
+    }
+  }
+  return done;
+}
 async function bulkEnrich(mode) {
   if (!aiReady()) { notice('Manca la chiave dell\'IA', 'Serve la chiave del servizio di IA, dalle Impostazioni.', [{ t: 'Apri le impostazioni', pri: true, fn: openSettings }, { t: 'Chiudi' }]); return; }
   let todo = uniqW(Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk)); // una ricerca per vino, non per bottiglia
   if (mode === 'web') todo = todo.filter((b) => !b.aiDeep);
   else if (mode !== 'all') todo = todo.filter(incomplete);
+  const needG = uniqW(Object.values(S.bottles).filter(noGrapes)).length;
+  if (!todo.length && needG && mode !== 'web') {
+    const d0 = $('#dlg2');
+    d0.innerHTML = `<h2>Aggiorno le bottiglie</h2><p id="bk_t" style="font-size:16px;margin:10px 0">Cerco gli uvaggi…</p><div class="acts"><button class="btn" id="bk_x">Chiudi</button></div>`;
+    $('#bk_x').onclick = () => d0.close(); d0.onclose = null; if (!d0.open) d0.showModal();
+    try { const n = await fillGrapes((t) => { $('#bk_t').textContent = t; }); $('#bk_t').textContent = 'Uvaggio aggiunto a ' + n + (n === 1 ? ' vino.' : ' vini.') + ' Le altre informazioni erano già complete.'; }
+    catch (e) { $('#bk_t').textContent = 'Uvaggi non riusciti: ' + errorHint(e.message) + ' (' + e.message + ')'; }
+    render(); return;
+  }
   // prima quelle mai elaborate, poi le più vecchie
   todo.sort((a, b) => (a.aiAt || 0) - (b.aiAt || 0));
   if (!todo.length) {
@@ -1341,8 +1411,10 @@ async function bulkEnrich(mode) {
     const w = $('#bk_w'); if (w) w.textContent = '';
     await sleep(1500);
   }
+  let gN = 0;
+  if (!stop && !note && mode !== 'web') { try { gN = await fillGrapes((t) => { $('#bk_t').textContent = t; }); } catch (_) {} }
   aiWaitNote = null;
-  $('#bk_t').textContent = 'Aggiornati ' + ok + ' vini su ' + todo.length + '.' + (noWeb ? ' ' + noWeb + ' senza ricerca web (solo conoscenze dell\'IA, valore non cambiato): potrai rifarle con «Rifai quelle senza ricerca web».' : '') + (note ? ' ' + note : '') + ' Controlla le schede: sono dati trovati dall\'IA.';
+  $('#bk_t').textContent = 'Aggiornati ' + ok + ' vini su ' + todo.length + '.' + (gN ? ' Uvaggio aggiunto a ' + gN + ' vini.' : '') + (noWeb ? ' ' + noWeb + ' senza ricerca web (solo conoscenze dell\'IA, valore non cambiato): potrai rifarle con «Rifai quelle senza ricerca web».' : '') + (note ? ' ' + note : '') + ' Controlla le schede: sono dati trovati dall\'IA.';
   $('#bk_x').textContent = 'Chiudi'; $('#bk_x').onclick = () => d.close();
   render();
 }
@@ -1379,7 +1451,7 @@ function openSettings() {
   <p class="info" id="c_msg"></p>
   <h3 style="margin:16px 0 4px;font-size:16px">Aggiorna le bottiglie già inserite</h3>
   <p class="info">Cerca con l'IA informazioni, produzione, quando berla, valore di mercato ed etichetta. I campi che hai scritto tu e i valori inseriti a mano non vengono toccati. Ogni bottiglia viene salvata appena pronta: se il limite gratuito finisce, la volta dopo riparte da quelle rimaste.</p>
-  <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${uniqW(Object.values(S.bottles).filter(incomplete)).length})</button><button class="btn" id="b_web">Rifai quelle senza ricerca web (${uniqW(Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep)).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
+  <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${uniqW(Object.values(S.bottles).filter((b) => incomplete(b) || noGrapes(b))).length})</button><button class="btn" id="b_web">Rifai quelle senza ricerca web (${uniqW(Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep)).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
   ${backupSection()}
   <div class="acts"><button class="btn" id="b_exp">Esporta backup</button><label class="btn">Importa backup<input type="file" accept="application/json,.json" hidden id="b_imp"></label></div>
   <h3 style="margin:16px 0 4px;font-size:16px">Importa da Excel, Vivino o CellarTracker</h3>

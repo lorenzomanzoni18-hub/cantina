@@ -506,3 +506,4 @@ body:not([data-tab=cantina]):not([data-tab=lista]) .fab{display:none}
 .lcw{overflow:hidden;border-radius:8px}
 #lc_sz{accent-color:var(--gold);border:0;background:none;padding:0}
 #lc_sz{height:28px;margin:0 0 6px}
+.fr[hidden]{display:none}
