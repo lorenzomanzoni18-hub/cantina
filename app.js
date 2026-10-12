@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '39';
+const APP_VERSION = '40';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -347,11 +347,13 @@ Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
 - price_note: fonte e fascia di prezzo trovate, per esempio "Wine-Searcher: 85-120 €, media 98 €".
 Regole: scrivi in italiano. Riporta solo ciò che trovi nelle fonti; per ogni dato che non trovi scrivi "Dato non reperito" invece di inventare. Cita la fonte tra parentesi per i numeri importanti. Se non conosci questo vino in particolare, dillo e inizia il testo con "Indicazione generica:".`;
 }
+// Solo conoscenze dell'IA, senza ricerca web: costa una frazione di centesimo
+async function quickInfo(b) { const j = await aiJson(enrichPrompt(b)); if (j) j.price_eur = null; return { j, links: [], deep: false, quick: true }; }
 async function deepInfo(b) {
   let limited = false, why = '';
   try {
     lastSearchNote = '';
-    const r = await aiSearch(deepPrompt(b));
+    const r = await aiSearch(deepPrompt(b), 2);
     const j = parseJsonLoose(r.text);
     if (j) return { j, links: r.links, deep: true };
     why = lastSearchNote || 'la risposta della ricerca non era leggibile';
@@ -1310,9 +1312,9 @@ function openShelf(id) {
 }
 
 /* ===== Impostazioni e backup ===== */
-async function enrichRecord(b0) {
+async function enrichRecord(b0, noWeb) {
   const b = { ...b0 };
-  const r = await deepInfo({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size, disg: b.disg, dosage: b.dosage });
+  const r = await (noWeb ? quickInfo : deepInfo)({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size, disg: b.disg, dosage: b.dosage });
   const j = r.j || {};
   const t = new Set(b.touched || []);
   const put = (k, f) => { if (typeof j[f] === 'string' && j[f].trim() && !t.has(k)) b[k] = j[f].trim(); };
@@ -1341,7 +1343,7 @@ async function enrichRecord(b0) {
       } catch (_) {}
     }
   }
-  return { b, deep: r.deep, limited: r.limited };
+  return { b, deep: r.deep, limited: r.limited, quick: r.quick };
 }
 // Una bottiglia è "incompleta" se l'IA non l'ha mai elaborata e le mancano le informazioni.
 const incomplete = (b) => (b.producer || b.cuvee) && !b.drunk && !b.aiAt && (!b.prod || !b.info);
@@ -1402,11 +1404,11 @@ async function bulkEnrich(mode) {
     if (!cur) continue;
     $('#bk_t').textContent = (i + 1) + ' di ' + todo.length + ': ' + name(cur) + (cur.vintage ? ' ' + cur.vintage : '') + '…';
     try {
-      const r = await enrichRecord(cur);
+      const r = await enrichRecord(cur, mode !== 'web' && getCfg().provider === 'anthropic');
       await persistBottle(r.b); // salvo sempre, anche senza ricerca web
       await syncGroup(r.b);
       ok++;
-      if (!r.deep) noWeb++;
+      if (!r.deep && !r.quick) noWeb++;
     } catch (e) { note = e.quota ? e.message + ' Premi di nuovo il pulsante più tardi: riparto dalle bottiglie rimaste.' : 'Mi fermo: ' + errorHint(e.message) + ' (' + e.message + ')'; break; }
     const w = $('#bk_w'); if (w) w.textContent = '';
     await sleep(1500);
@@ -1451,7 +1453,7 @@ function openSettings() {
   <p class="info" id="c_msg"></p>
   <h3 style="margin:16px 0 4px;font-size:16px">Aggiorna le bottiglie già inserite</h3>
   <p class="info">Cerca con l'IA informazioni, produzione, quando berla, valore di mercato ed etichetta. I campi che hai scritto tu e i valori inseriti a mano non vengono toccati. Ogni bottiglia viene salvata appena pronta: se il limite gratuito finisce, la volta dopo riparte da quelle rimaste.</p>
-  <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${uniqW(Object.values(S.bottles).filter((b) => incomplete(b) || noGrapes(b))).length})</button><button class="btn" id="b_web">Rifai quelle senza ricerca web (${uniqW(Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep)).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
+  <div class="acts"><button class="btn" id="b_bulk">Completa quelle incomplete (${uniqW(Object.values(S.bottles).filter((b) => incomplete(b) || noGrapes(b))).length})</button><button class="btn" id="b_web">Cerca sul web quelle senza ricerca (circa 3 cent. a vino con Claude) (${uniqW(Object.values(S.bottles).filter((b) => (b.producer || b.cuvee) && !b.drunk && !b.aiDeep)).length})</button><button class="btn" id="b_all">Aggiorna tutte le bottiglie</button></div>
   ${backupSection()}
   <div class="acts"><button class="btn" id="b_exp">Esporta backup</button><label class="btn">Importa backup<input type="file" accept="application/json,.json" hidden id="b_imp"></label></div>
   <h3 style="margin:16px 0 4px;font-size:16px">Importa da Excel, Vivino o CellarTracker</h3>
