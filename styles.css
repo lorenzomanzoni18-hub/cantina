@@ -507,3 +507,7 @@ body:not([data-tab=cantina]):not([data-tab=lista]) .fab{display:none}
 #lc_sz{accent-color:var(--gold);border:0;background:none;padding:0}
 #lc_sz{height:28px;margin:0 0 6px}
 .fr[hidden]{display:none}
+/* chiusura delle finestre a tendina */
+.xclose{position:sticky;top:-14px;float:right;z-index:4;width:34px;height:34px;margin:-12px -6px 0 8px;border-radius:17px;border:0;background:var(--sf2);color:var(--mute);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+dialog{touch-action:pan-y}
+details.fold>summary:focus:not(:focus-visible){outline:none}
