@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '40';
+const APP_VERSION = '41';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -313,12 +313,12 @@ Regole: riporta solo ciò che trovi davvero nelle fonti, niente punteggi inventa
 
 const infoRules = (ml) => `Scrivi in italiano. Non inventare: niente punteggi, premi, date o dati che non conosci con buona certezza; usa stringa vuota o null per ciò che non sai. Se non conosci questo vino in particolare, scrivi informazioni generali su tipo, zona e uve e inizia quel testo con "Indicazione generica:".
 Campi informativi:
-"producer_info": 3-5 frasi sul produttore (dove si trova, filosofia, stile, cosa lo rende noto);
-"wine_info": 3-5 frasi sulla cuvée e sulla bottiglia (uve, vinificazione, affinamento, profilo di degustazione);
-"vintage_info": 2-3 frasi sull'annata in quella zona (andamento climatico, carattere dei vini);
+"producer_info": 2-3 frasi sul produttore (dove si trova, filosofia, stile);
+"wine_info": 3-4 frasi sulla cuvée (vinificazione, affinamento, profilo di degustazione);
+"vintage_info": 1-2 frasi sull'annata in quella zona;
 "drink_text": 1-2 frasi su quando berla, in base a tipo di vino, annata e parere comune di critici e guide: indica la finestra con anni, il picco e se è pronta adesso o da aspettare;
 "drink_from" e "drink_to": anni (numeri) di inizio e fine della finestra ideale, oppure null;
-"pairing": 3-4 abbinamenti migliori, in una frase breve;
+"pairing": 3 abbinamenti, in una frase breve;
 "price_eur": prezzo indicativo di mercato in euro per una bottiglia nel formato ${sizeName(ml || 750)}, oppure null se incerto;
 "grapes": uvaggio con le percentuali se note (es. "Nebbiolo 100%", "Chardonnay 60%, Pinot Noir 40%"); se non è scritto ma è noto per questa cuvée o imposto dal disciplinare scrivilo comunque; null solo se davvero non si sa;
 "abv": gradazione alcolica in % (numero) se scritta o nota per questo vino, altrimenti null;
@@ -336,17 +336,19 @@ function deepPrompt(b) {
   return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}${b.disg ? ', sboccatura ' + b.disg : ''}${b.dosage ? ', dosaggio ' + b.dosage : ''}, formato ${sizeName(b.size || 750)}. Siamo nel ${new Date().getFullYear()}.
 Consulta il sito del produttore, guide e riviste, Wine-Searcher, Vivino, CellarTracker, enoteche e case d'asta.
 Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
-{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"grapes":string|null,"abv":number|null,"dosage":string|null,"producer_info":string,"wine_info":string,"production":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
+{"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"grapes":string|null,"abv":number|null,"dosage":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
 - grapes: uvaggio con percentuali (es. "Sangiovese 100%"), dalla scheda tecnica del produttore se la trovi; dosage solo per spumanti (es. "Extra Brut 3 g/l"); abv gradazione in %.
-- producer_info: storia, proprietà, ettari e filosofia dell'azienda, 5-8 frasi.
-- wine_info: uve e percentuali, vigneto (suolo, altitudine, esposizione), vinificazione, affinamento (contenitori e mesi), gradazione alcolica, stile e profilo di degustazione, 5-8 frasi.
-- production: numero di bottiglie prodotte per questa annata (o la produzione media annua) e resa, solo se lo trovi in una fonte; altrimenti "Dato non reperito".
-- vintage_info: andamento climatico dell'annata nella zona e giudizio generale, con eventuali punteggi di critici con la fonte.
+- producer_info: chi è e dove si trova, filosofia e stile, 2-3 frasi.
+- wine_info: vigneto, vinificazione e affinamento, profilo di degustazione, 3-4 frasi.
+- vintage_info: com'è stata l'annata nella zona, 1-2 frasi.
 - price_eur: prezzo medio di mercato attuale in euro per UNA bottiglia nel formato ${sizeName(b.size || 750)} di QUESTA annata (se trovi solo il prezzo da 75 cl e il formato è diverso, rapportalo e dillo in price_note), preso da Wine-Searcher, aste o enoteche. Non stimarlo a memoria: se non trovi un prezzo per questa annata usa null.
 - Per gli spumanti metodo classico tieni conto della data di sboccatura (se indicata) per dire quando berlo: di solito dà il meglio da 1-2 anni dopo la sboccatura.
 - price_note: fonte e fascia di prezzo trovate, per esempio "Wine-Searcher: 85-120 €, media 98 €".
-Regole: scrivi in italiano. Riporta solo ciò che trovi nelle fonti; per ogni dato che non trovi scrivi "Dato non reperito" invece di inventare. Cita la fonte tra parentesi per i numeri importanti. Se non conosci questo vino in particolare, dillo e inizia il testo con "Indicazione generica:".`;
+Regole: scrivi in italiano. Riporta solo ciò che trovi nelle fonti; per ogni dato che non trovi scrivi "Dato non reperito" invece di inventare. Cita la fonte tra parentesi per i numeri importanti. Se non conosci questo vino in particolare, dillo e inizia il testo con "Indicazione generica:".${skipProd(b)}`;
 }
+// Se in cantina c'è già un'altra bottiglia dello stesso produttore con la scheda, la riuso: niente da chiedere all'IA
+function knownProducerInfo(prod, exceptId) { if (!prod || typeof sameProd !== 'function') return ''; const x = Object.values(S.bottles).find((o) => o.id !== exceptId && o.info && o.producer && sameProd(o.producer, prod)); return x ? x.info : ''; }
+const skipProd = (b) => b.knownProd ? '\nIl produttore lo conosco già: lascia "producer_info" come stringa vuota.' : '';
 // Solo conoscenze dell'IA, senza ricerca web: costa una frazione di centesimo
 async function quickInfo(b) { const j = await aiJson(enrichPrompt(b)); if (j) j.price_eur = null; return { j, links: [], deep: false, quick: true }; }
 async function deepInfo(b) {
@@ -369,7 +371,7 @@ async function deepInfo(b) {
 function enrichPrompt(b) {
   return `Bottiglia di vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}, tipo ${b.type}, formato ${sizeName(b.size || 750)}, zona ${b.region || 'non indicata'}. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
 {"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"grapes":string|null,"abv":number|null,"dosage":string|null}
-${infoRules(b.size)}`;
+${infoRules(b.size)}${skipProd(b)}`;
 }
 
 /* ===== Calendario biodinamico (dal tuo file) ===== */
@@ -877,10 +879,10 @@ async function openBottle(id, pre) {
   <h4 class="gh">Abbinamenti</h4><div class="grp"><div class="fb"><textarea id="f_pairing" rows="2" placeholder="Piatti consigliati">${esc(b.pairing)}</textarea><div class="info" id="rext"></div></div></div>
   <h4 class="gh">Servizio</h4><div id="svcbox">${serviceHtml(b)}</div>
   <h4 class="gh">Degustazioni</h4><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
-  <details class="more aiinfo"><summary>Produttore, vino, produzione e annata</summary>
+  <details class="more aiinfo"><summary>Produttore, vino e annata</summary>
   <label>Il produttore</label><textarea id="f_info" rows="6">${esc(b.info)}</textarea>
   <label>Sulla cuvée e sulla bottiglia</label><textarea id="f_winfo" rows="7">${esc(b.winfo)}</textarea>
-  <label>Produzione e bottiglie prodotte</label><textarea id="f_prod" rows="3">${esc(b.prod)}</textarea>
+  <div ${b.prod ? '' : 'hidden'}><label>Produzione e bottiglie prodotte</label><textarea id="f_prod" rows="3">${esc(b.prod)}</textarea></div>
   <label>Sull'annata</label><textarea id="f_vinfo" rows="4">${esc(b.vinfo)}</textarea>
   <div class="info" id="esrc"></div></details>
   <p class="info">Le informazioni automatiche sono stime dell'IA: controllale prima di fidarti.</p>
@@ -1011,7 +1013,9 @@ async function openBottle(id, pre) {
     scs('Cerco informazioni approfondite online… può volerci fino a un minuto.');
     aiWaitNote = (s) => scs('Gemini chiede una pausa: riprovo da solo tra ' + s + ' secondi…');
     try {
-      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf(), disg: g('disg'), dosage: g('dosage') });
+      const kp = !g('info') ? knownProducerInfo(g('producer'), b.id) : '';
+      if (kp) $('#f_info').value = kp;
+      const r = await deepInfo({ producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), type: g('type'), region: g('region'), size: sizeOf(), disg: g('disg'), dosage: g('dosage'), knownProd: !!g('info') });
       applyInfo(r.j); updDW(); updHead();
       aiAt = Date.now(); aiDeep = !!r.deep;
       if (r.links.length) { srcLinks = r.links; showSrc(); }
@@ -1314,7 +1318,8 @@ function openShelf(id) {
 /* ===== Impostazioni e backup ===== */
 async function enrichRecord(b0, noWeb) {
   const b = { ...b0 };
-  const r = await (noWeb ? quickInfo : deepInfo)({ producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size, disg: b.disg, dosage: b.dosage });
+  if (!b.info) { const kp = knownProducerInfo(b.producer, b.id); if (kp) b.info = kp; }
+  const r = await (noWeb ? quickInfo : deepInfo)({ knownProd: !!b.info, producer: b.producer, cuvee: b.cuvee, vintage: b.vintage, type: b.type, region: b.region, size: b.size, disg: b.disg, dosage: b.dosage });
   const j = r.j || {};
   const t = new Set(b.touched || []);
   const put = (k, f) => { if (typeof j[f] === 'string' && j[f].trim() && !t.has(k)) b[k] = j[f].trim(); };
@@ -1346,7 +1351,7 @@ async function enrichRecord(b0, noWeb) {
   return { b, deep: r.deep, limited: r.limited, quick: r.quick };
 }
 // Una bottiglia è "incompleta" se l'IA non l'ha mai elaborata e le mancano le informazioni.
-const incomplete = (b) => (b.producer || b.cuvee) && !b.drunk && !b.aiAt && (!b.prod || !b.info);
+const incomplete = (b) => (b.producer || b.cuvee) && !b.drunk && !b.aiAt && (!b.winfo || !b.info);
 const noGrapes = (b) => (b.producer || b.cuvee) && !b.drunk && (!b.grapes || (b.type === 'bollicine' && !b.dosage));
 /* Uvaggio, gradazione e dosaggio per le bottiglie che non li hanno: 15 vini per richiesta, senza ricerca web, costa quasi nulla. */
 async function fillGrapes(onStep) {
