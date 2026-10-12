@@ -327,7 +327,7 @@ details.aiinfo[open] summary{margin-bottom:10px}
 .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin:6px 0 10px}
 .scanbox video{width:100%;height:100%;object-fit:cover;display:block}
 .scanbox i{position:absolute;left:12%;right:12%;top:38%;bottom:38%;border:2px solid var(--gold);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
-nav{grid-template-columns:repeat(6,minmax(0,1fr))}
+nav{grid-template-columns:repeat(5,minmax(0,1fr))}
 nav button{font-size:10.5px}
 /* --- pagina Calici --- */
 .ptitle{font-size:30px;margin:10px 0 4px}
