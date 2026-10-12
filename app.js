@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '35';
+const APP_VERSION = '36';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -254,12 +254,14 @@ async function aiSearch(prompt) {
   const c = getCfg();
   let text = '', links = [];
   if (c.provider === 'anthropic') {
-    const r = await fetch('https://api.anthropic.com/v1/messages', {
+    // ricerca web di Claude: circa 1 centesimo per ricerca, al massimo 2 ricerche per domanda
+    const call = (tool) => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': c.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 2000, tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }], messages: [{ role: 'user', content: prompt }] }),
+      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 2000, tools: [{ type: tool, name: 'web_search', max_uses: 2 }], messages: [{ role: 'user', content: prompt }] }),
     });
-    const j = await r.json().catch(() => ({}));
+    let r = await call('web_search_20250305'), j = await r.json().catch(() => ({}));
+    if (r.status === 400 && /web_search|tool/i.test((j.error && j.error.message) || '')) { r = await call('web_search_20260209'); j = await r.json().catch(() => ({})); }
     if (!r.ok) throw new Error((j.error && j.error.message) || 'Errore ' + r.status);
     for (const x of j.content || []) {
       if (x.type === 'text') text += x.text || '';
