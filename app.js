@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '42';
+const APP_VERSION = '43';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -638,7 +638,7 @@ function lista(all) {
   const nAdv = [flt.region, flt.vint, flt.size, flt.tag].filter(Boolean).length + (flt.sort !== 'az' ? 1 : 0);
   const chip = (k, v, l) => `<button class="fchip${flt[k] === v ? ' on' : ''}" data-a="fchip" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
   const adv = [['region', flt.region], ['vint', flt.vint], ['size', flt.size ? sizeName(+flt.size) : ''], ['tag', flt.tag]].filter((x) => x[1]).map(([k, l]) => `<button class="fchip on x" data-a="fclear" data-k="${k}">${esc(l)} ✕</button>`).join('');
-  const filters = `<div class="fchips"><button class="fchip fbtn${nAdv ? ' on' : ''}" data-a="fltsheet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtri${nAdv ? ' · ' + nAdv : ''}</button>${adv}${TYP.map(([v, l]) => chip('type', v, l)).join('')}${!drunkView ? STA.map(([v, l]) => chip('stat', v, l)).join('') : ''}</div>`;
+  const filters = `<div class="fchips"><button class="fchip x" data-a="labels" type="button">Etichette</button><button class="fchip fbtn${nAdv ? ' on' : ''}" data-a="fltsheet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtri${nAdv ? ' · ' + nAdv : ''}</button>${adv}${TYP.map(([v, l]) => chip('type', v, l)).join('')}${!drunkView ? STA.map(([v, l]) => chip('stat', v, l)).join('') : ''}</div>`;
   fltSheetHtml = () => `<h2>Filtri</h2>
     <label>Zona</label><select data-flt="region">${opt(uniq((b) => b.region).sort((a, b) => a.localeCompare(b, 'it')), flt.region, 'Tutte le zone')}</select>
     <label>Annata</label><select data-flt="vint">${opt(uniq((b) => b.vintage).sort(), flt.vint, 'Tutte le annate')}</select>
@@ -834,7 +834,7 @@ async function openBottle(id, pre) {
   <p class="info" id="scs"></p>
   <div id="photoctl" class="photopanel">
   <p class="info">Fotografa l'etichetta: compilo io i campi, tu controlli.</p>
-  <div class="pgrid"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="pasteimg" type="button">Incolla</button><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca online</a><label class="btn">Retro-etichetta<input type="file" accept="image/*" hidden class="rph"></label></div>
+  <div class="pgrid"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="webimg" type="button">Etichetta da internet</button><button class="btn" id="pasteimg" type="button">Incolla</button><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca online</a><label class="btn">Retro-etichetta<input type="file" accept="image/*" hidden class="rph"></label></div>
   <div class="acts" id="photoact" hidden><button class="btn" id="whole" type="button" hidden></button></div>
   <div id="pbox" class="pbox" contenteditable="true" inputmode="none">Per incollare un'immagine trovata online: tieni premuto qui e scegli Incolla.</div>
   </div>
@@ -1083,6 +1083,15 @@ async function openBottle(id, pre) {
     if (!f) { scs('Non ho trovato un\'immagine negli appunti.'); return; }
     await take(f);
   });
+  $('#webimg').onclick = () => {
+    if (!g('producer') && !g('cuvee')) { scs('Scrivi prima il produttore o la cuvée.'); return; }
+    labelPicker({ id: b.id, producer: g('producer'), cuvee: g('cuvee'), vintage: g('vintage'), region: g('region'), type: g('type') }, null, async (bl) => {
+      const full = await canvasBlob(await drawCrop(bl, null, 1600), 0.9);
+      orig = full; photoFull = photo = full; useFull = false;
+      thumb = await makeLabelThumb(full, await labelBoxOf(full)); labelThumb = true; onlineLabel = true;
+      showPic(); scs('Etichetta da internet aggiunta. Se non è centrata, tocca il cerchio e premi Centra.');
+    });
+  };
   $('#pasteimg').onclick = async () => {
     try {
       for (const it of await navigator.clipboard.read()) {
