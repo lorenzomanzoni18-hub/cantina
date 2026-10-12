@@ -149,10 +149,10 @@ function openWizard() {
 }
 
 /* ---- Valori di mercato aggiornati ogni mese ---- */
-const valAutoOn = () => { try { return localStorage.getItem('cantina.valauto') !== '0'; } catch (_) { return true; } };
+const valAutoOn = () => { try { return localStorage.getItem('cantina.valauto') === '1'; } catch (_) { return false; } };
 async function priceOnly(b) {
   const r = await aiSearch(`Cerca sul web il prezzo di mercato attuale in euro di UNA bottiglia di questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}, formato ${sizeName(sizeMl(b))}. Usa Wine-Searcher, enoteche online e aste. Siamo nel ${new Date().getFullYear()}.
-Rispondi SOLO con JSON: {"price_eur": number|null, "note": "fonte e fascia trovate, es. Wine-Searcher: 85-120 €, media 98 €"}. Se non trovi un prezzo per questa annata usa null: non stimare a memoria.`);
+Rispondi SOLO con JSON: {"price_eur": number|null, "note": "fonte e fascia trovate, es. Wine-Searcher: 85-120 €, media 98 €"}. Se non trovi un prezzo per questa annata usa null: non stimare a memoria.`, 1);
   return parseJsonLoose(r.text);
 }
 async function autoValues() {
@@ -191,7 +191,7 @@ function syncSection() {
   <div class="acts"><button class="btn" id="sy_now">Sincronizza ora</button></div><p class="info" id="sy_m"></p>`
   : `<p class="info">Per usare l'app anche dal Mac con gli stessi dati, attiva prima il backup nel cloud.</p><div class="acts"><button class="btn pri" data-a="bkwizard">Attiva backup e sincronizzazione</button></div>`}
   <h3 style="margin:16px 0 4px;font-size:16px">Valori di mercato</h3>
-  <label class="chk"><input type="checkbox" id="va_on" ${valAutoOn() ? 'checked' : ''}> Aggiorna ogni mese i valori stimati</label>
+  <label class="chk"><input type="checkbox" id="va_on" ${valAutoOn() ? 'checked' : ''}> Aggiorna ogni mese i valori stimati (usa la ricerca web: con Claude costa circa 1-2 centesimi a vino)</label>
   <p class="info">Ogni giorno l'app ricontrolla online il prezzo di qualche vino (pochi per volta, per i limiti gratuiti dell'IA). I valori che hai scritto tu non vengono toccati.</p>`;
 }
 function bindSyncSection() {

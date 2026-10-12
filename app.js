@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '38';
+const APP_VERSION = '39';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -254,7 +254,7 @@ async function aiJson(prompt, image) {
 }
 
 let lastSearchNote = '';
-async function aiSearch(prompt) {
+async function aiSearch(prompt, maxUses) {
   const c = getCfg();
   let text = '', links = [];
   if (c.provider === 'anthropic') {
@@ -264,7 +264,7 @@ async function aiSearch(prompt) {
     const call = () => fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-api-key': c.anthropicKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 6000, tools: [{ type: tool, name: 'web_search', max_uses: 4 }], messages: msgs }),
+      body: JSON.stringify({ model: c.anthropicModel, max_tokens: 6000, tools: [{ type: tool, name: 'web_search', max_uses: maxUses || 3 }], messages: msgs }),
     });
     let all = [];
     for (let turn = 0; turn < 3; turn++) {
