@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '34';
+const APP_VERSION = '35';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -145,6 +145,8 @@ const resetTime = () => new Date(Date.now() + msToReset()).toLocaleString('it-IT
 function gemx() { try { const o = JSON.parse(localStorage.getItem(GEMX_KEY) || '{}'), n = Date.now(), r = {}; Object.keys(o).forEach((k) => { if (o[k] > n) r[k] = o[k]; }); return r; } catch (_) { return {}; } }
 function gemxMark(k, ms) { const o = gemx(); o[k] = Date.now() + (ms || msToReset()); try { localStorage.setItem(GEMX_KEY, JSON.stringify(o)); } catch (_) {} }
 function gemxClear() { try { localStorage.removeItem(GEMX_KEY); } catch (_) {} }
+// v35: i blocchi salvati prima erano spesso sbagliati (ricerca web non gratuita scambiata per limite giornaliero)
+try { if (localStorage.getItem('cantina.gemxv') !== '35') { gemxClear(); localStorage.setItem('cantina.gemxv', '35'); } } catch (_) {}
 function gemClassify(status, j) {
   const e = (j && j.error) || {}, m = String(e.message || 'Errore ' + status), ml = m.toLowerCase();
   const det = Array.isArray(e.details) ? e.details : [];
@@ -153,6 +155,9 @@ function gemClassify(status, j) {
   const wait = ri ? parseFloat(ri.retryDelay) || 0 : 0;
   if (status === 429 || e.status === 'RESOURCE_EXHAUSTED' || ml.includes('quota')) {
     const search = /search|ground/i.test(qids + ' ' + m);
+    // "limit: 0": la funzione (o il modello) non è proprio inclusa nel piano gratuito, non è un limite che si azzera domani
+    const zero = /limit:\s*0\b/.test(ml) || det.some((d) => (d.violations || []).some((v) => String(v.quotaValue) === '0'));
+    if (zero) return { kind: 'nofree', m, search };
     if (/perday|per_day|daily/i.test(qids + ' ' + m)) return { kind: 'day', m, search };
     if (wait && wait <= 90) return { kind: 'minute', m, wait, search };
     if (/perminute|per_minute/i.test(qids)) return { kind: 'minute', m, wait: 30, search };
@@ -166,7 +171,7 @@ function gemClassify(status, j) {
 }
 async function gemCall(body, search) {
   const c = getCfg();
-  let last = null, tried = 0;
+  let last = null, tried = 0, nofreeSearch = false;
   for (const model of gemModels()) {
     const x = gemx();
     if (x[model] || (search && x[model + '|s'])) continue;
@@ -190,6 +195,7 @@ async function gemCall(body, search) {
       }
       if (k.kind === 'day' || k.kind === 'minute') gemxMark(k.search && search ? model + '|s' : model, k.kind === 'minute' ? 120000 : 0);
       else if (k.kind === 'model') gemxMark(model, 24 * 3600000);
+      else if (k.kind === 'nofree') { gemxMark(k.search && search ? model + '|s' : model, 7 * 24 * 3600000); if (search) nofreeSearch = true; }
       else if (k.kind === 'nosearch') gemxMark(model + '|s', 7 * 24 * 3600000);
       break; // passo al modello successivo
     }
@@ -198,6 +204,9 @@ async function gemCall(body, search) {
     const err = new Error('Gemini chiede di rallentare (limite al minuto, quota). Riprova tra un paio di minuti.');
     err.quota = true;
     throw err;
+  }
+  if (search && (nofreeSearch || (last && (last.kind === 'nofree' || last.kind === 'nosearch')) || (!tried && gemModels().every((md) => gemx()[md + '|s'])))) {
+    const err = new Error('nosearch'); err.nosearch = true; throw err;
   }
   if (!tried || (last && last.kind === 'day')) {
     const err = new Error((search ? 'Ricerca web gratuita di Gemini esaurita' : 'Limite gratuito di Gemini esaurito') + ' per oggi su tutti i modelli (quota). Si azzera ' + resetTime() + '.');
@@ -257,7 +266,13 @@ async function aiSearch(prompt) {
       if (x.type === 'web_search_tool_result' && Array.isArray(x.content)) x.content.forEach((y) => y.url && links.push({ t: y.title || y.url, u: y.url }));
     }
   } else {
-    const j = await gemCall({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }, true);
+    let j;
+    try { j = await gemCall({ contents: [{ parts: [{ text: prompt }] }], tools: [{ google_search: {} }], generationConfig: { temperature: 0.2 } }, true); }
+    catch (e) {
+      if (!e.nosearch && !(e.quota && /ricerca web/i.test(e.message))) throw e;
+      // la ricerca web non è nel piano gratuito di Gemini: rispondo con quello che il modello sa già
+      j = await gemCall({ contents: [{ parts: [{ text: prompt + '\n\nNota: non puoi navigare sul web in questo momento. Rispondi con le tue conoscenze, senza inventare; dove non sei sicuro dillo. Non citare link.' }] }], generationConfig: { temperature: 0.2 } }, false);
+    }
     const cand = (j.candidates || [])[0] || {};
     text = ((cand.content || { parts: [] }).parts || []).map((x) => x.text || '').join('');
     ((cand.groundingMetadata || {}).groundingChunks || []).forEach((g) => g.web && g.web.uri && links.push({ t: g.web.title || g.web.uri, u: g.web.uri }));
