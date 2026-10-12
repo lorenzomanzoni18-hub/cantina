@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '31';
+const APP_VERSION = '32';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -288,9 +288,9 @@ Campi informativi:
 
 function scanPrompt() {
   return `Questa è la foto di una bottiglia o di un'etichetta di vino. Siamo nel ${new Date().getFullYear()}. Rispondi solo con un oggetto JSON con questi campi:
-{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"label_box":{"left":0-1,"top":0-1,"right":0-1,"bottom":0-1}|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"size_ml":number|null}
+{"producer":string|null,"cuvee":string|null,"vintage":number|null,"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro","region":string|null,"barcode":string|null,"box_2d":[ymin,xmin,ymax,xmax]|null,"label_box_2d":[ymin,xmin,ymax,xmax]|null,"quality":"buona"|"scarsa","producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"size_ml":number|null}
 "size_ml" è la capacità della bottiglia in millilitri se scritta sull'etichetta o riconoscibile con certezza (es. 750, 375, 1500), altrimenti null.
-"box" è il rettangolo che contiene la bottiglia intera (o solo l'etichetta se la bottiglia non si vede), in frazioni di larghezza e altezza dell'immagine. "label_box" è il rettangolo stretto della sola etichetta frontale principale (senza collo, capsula o sfondo), nello stesso formato; null se l'etichetta non si vede. "quality" è "scarsa" se la foto è sfocata, buia, tagliata o l'etichetta è poco leggibile. "barcode" contiene solo le cifre del codice a barre, se leggibili. Per produttore, cuvée, annata, zona e codice usa null se non li leggi con certezza.
+"box_2d" è il rettangolo che contiene la bottiglia intera (o solo l'etichetta se la bottiglia non si vede): quattro numeri interi [ymin, xmin, ymax, xmax] da 0 a 1000, dove 0,0 è l'angolo in alto a sinistra dell'immagine e 1000,1000 quello in basso a destra. "label_box_2d" è il rettangolo stretto della sola etichetta frontale principale (senza collo, capsula o sfondo), nello stesso formato; null se l'etichetta non si vede. Misura con precisione: il ritaglio deve essere centrato sull'etichetta. "quality" è "scarsa" se la foto è sfocata, buia, tagliata o l'etichetta è poco leggibile. "barcode" contiene solo le cifre del codice a barre, se leggibili. Per produttore, cuvée, annata, zona e codice usa null se non li leggi con certezza.
 ${infoRules(750)}`;
 }
 function deepPrompt(b) {
@@ -616,11 +616,13 @@ function loadImg(blob) {
   });
 }
 function normBox(b) {
+  if (Array.isArray(b) && b.length === 4) { const [y0, x0, y1, x1] = b.map(Number); b = { left: Math.min(x0, x1), top: Math.min(y0, y1), right: Math.max(x0, x1), bottom: Math.max(y0, y1), _k: 1000 }; }
   if (!b || typeof b !== 'object') return null;
   let v = ['left', 'top', 'right', 'bottom'].map((k) => Number(b[k]));
   if (v.some((n) => !Number.isFinite(n) || n < 0)) return null;
   const m = Math.max(...v);
-  if (m > 1) v = v.map((n) => n / (m > 100 ? 1000 : 100));
+  if (b._k) v = v.map((n) => n / b._k);
+  else if (m > 1) v = v.map((n) => n / (m > 100 ? 1000 : 100));
   v = v.map((n) => Math.min(1, n));
   const o = { left: v[0], top: v[1], right: v[2], bottom: v[3] };
   return o.right - o.left > 0.03 && o.bottom - o.top > 0.03 ? o : null;
@@ -642,6 +644,46 @@ async function drawCrop(blob, box, max, pad) {
 }
 const canvasBlob = (c, q) => new Promise((r) => c.toBlob(r, 'image/jpeg', q));
 async function toB64(blob, max) { const c = await drawCrop(blob, null, max); return c.toDataURL('image/jpeg', 0.85).split(',')[1]; }
+/* Editor per centrare a mano l'etichetta: riquadro quadrato da trascinare sulla foto. */
+async function labelEditor(blob, done) {
+  if (!blob) return;
+  let d = document.getElementById('dlg4');
+  if (!d) { d = document.createElement('dialog'); d.id = 'dlg4'; document.body.append(d); }
+  const url = URL.createObjectURL(blob);
+  d.innerHTML = `<h2>Centra l'etichetta</h2><p class="info">Trascina il riquadro sull'etichetta; con il cursore lo allarghi o lo stringi.</p>
+  <div class="lced"><div class="lcw" id="lc_w"><img id="lc_img" src="${url}" alt="" draggable="false"><div id="lc_box"></div></div></div>
+  <input type="range" id="lc_sz" min="15" max="100" value="55" aria-label="Grandezza del riquadro">
+  <div class="acts"><button class="btn pri" id="lc_ok" type="button">Usa questo ritaglio</button><button class="btn" id="lc_x" type="button">Annulla</button></div>`;
+  const img = $('#lc_img'), bx = $('#lc_box'), wrap = $('#lc_w');
+  await new Promise((r) => { if (img.complete && img.naturalWidth) r(); else { img.onload = r; img.onerror = r; } });
+  let cx = 0.5, cy = 0.5, sz = 0.55;
+  const dims = () => ({ w: img.clientWidth, h: img.clientHeight });
+  const side = () => { const { w, h } = dims(); return sz * Math.min(w, h); };
+  const draw = () => {
+    const { w, h } = dims(), s = side();
+    if (!w || !h) return;
+    cx = Math.min(1 - s / 2 / w, Math.max(s / 2 / w, cx)); cy = Math.min(1 - s / 2 / h, Math.max(s / 2 / h, cy));
+    Object.assign(bx.style, { width: s + 'px', height: s + 'px', left: cx * w - s / 2 + 'px', top: cy * h - s / 2 + 'px' });
+  };
+  draw();
+  let drag = null;
+  wrap.onpointerdown = (e) => { e.preventDefault(); wrap.setPointerCapture(e.pointerId); const r = img.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, cx, cy, w: r.width, h: r.height }; if (e.target !== bx) { cx = (e.clientX - r.left) / r.width; cy = (e.clientY - r.top) / r.height; drag.cx = cx; drag.cy = cy; draw(); } };
+  wrap.onpointermove = (e) => { if (!drag) return; cx = drag.cx + (e.clientX - drag.x) / drag.w; cy = drag.cy + (e.clientY - drag.y) / drag.h; draw(); };
+  wrap.onpointerup = wrap.onpointercancel = () => { drag = null; };
+  $('#lc_sz').oninput = (e) => { sz = e.target.value / 100; draw(); };
+  const close = () => { URL.revokeObjectURL(url); d.close(); };
+  $('#lc_x').onclick = close;
+  $('#lc_ok').onclick = () => {
+    const { w, h } = dims(), s = side();
+    // riquadro in frazioni; makeLabelThumb aggiunge un piccolo margine, quindi lo stringo dello stesso tanto
+    const k = 1 / 1.08, sw = s * k / w, sh = s * k / h;
+    done({ left: cx - sw / 2, right: cx + sw / 2, top: cy - sh / 2, bottom: cy + sh / 2 });
+    close();
+  };
+  d.onclose = null;
+  d.showModal();
+  requestAnimationFrame(draw);
+}
 async function makeLabelThumb(blob, box) {
   box = normBox(box);
   if (!box) { const c0 = await drawCrop(blob, null, 360); return c0.toDataURL('image/jpeg', 0.85); }
@@ -706,7 +748,7 @@ async function openBottle(id, pre) {
   const grp = old ? groupOf(b) : [b];
   let tastings = tastingsOf(b);
   const state0 = b.drunk ? 'drunk' : b.wish ? 'wish' : b.pending ? 'pend' : 'in';
-  let photo = null, photoFull = null, labelThumb = false, thumb = b.thumb || null, useFull = !!b.useFull;
+  let photo = null, photoFull = null, labelThumb = !!b.thumb, thumb = b.thumb || null, useFull = !!b.useFull;
   let aiAt = b.aiAt || null, aiDeep = !!b.aiDeep;
   let onlineLabel = false, valueNote = b.valueNote || '', srcLinks = b.srcLinks || [], busy = false, again = false, autoVal = !!b.valueAuto, dFrom = b.drinkFrom || null, dTo = b.drinkTo || null, picUrl = null, orig = null;
   if (id) {
@@ -813,7 +855,8 @@ async function openBottle(id, pre) {
     if (picUrl) URL.revokeObjectURL(picUrl);
     const bl = cur();
     picUrl = bl ? URL.createObjectURL(bl) : null;
-    $('#picbox').innerHTML = picUrl ? `<img class="pic" src="${picUrl}" alt="Foto della bottiglia">` : '';
+    $('#picbox').innerHTML = picUrl ? `<button type="button" class="picbtn" id="picedit" aria-label="Centra l'etichetta"><img class="pic" src="${thumb || picUrl}" alt="Etichetta"><span>Centra</span></button>` : '';
+    if ($('#picedit')) $('#picedit').onclick = () => labelEditor(photoFull || photo, async (box) => { thumb = await makeLabelThumb(photoFull || photo, box); labelThumb = true; onlineLabel = false; showPic(); });
     const w = $('#whole');
     w.hidden = !(photo && photoFull);
     w.textContent = useFull ? 'Usa il ritaglio' : 'Usa la foto intera';
@@ -1003,7 +1046,7 @@ async function openBottle(id, pre) {
       if (['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
       if (j.barcode && /^\d{8,14}$/.test(String(j.barcode))) b.barcode = String(j.barcode);
       applyInfo({ ...j, price_eur: null }); updDW(); updHead();
-      await setPhoto(file, j.box, j.label_box, j.barcode, j.quality === 'scarsa');
+      await setPhoto(file, j.box_2d || j.box, j.label_box_2d || j.label_box, j.barcode, j.quality === 'scarsa');
       ws();
       const poor = j.quality === 'scarsa' ? ' Foto poco chiara (sfocata, buia o tagliata): riscattala, oppure incolla una foto migliore.' : '';
       scs('Etichetta letta.' + (onlineLabel ? ' Etichetta scaricata da internet: se non è quella giusta, rifai la foto.' : ''));

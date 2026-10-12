@@ -494,3 +494,15 @@ body:not([data-tab=cantina]):not([data-tab=lista]) .fab{display:none}
 .dot.t-rosso:not(.has)::after,.dot.t-bianco:not(.has)::after,.dot.t-bollicine:not(.has)::after,.dot.t-rosato:not(.has)::after,.dot.t-altro:not(.has)::after{content:"";position:absolute;inset:8% 40% 52% 18%;border-radius:50%;background:rgba(255,255,255,.18);filter:blur(2px);pointer-events:none}
 .maplink small{display:block;font-weight:500;font-size:12.5px;color:var(--mute);margin-top:1px}
 .maplink>span:last-child{color:var(--gold);font-size:22px}
+/* etichetta nell'intestazione della scheda + editor per centrarla */
+.shead #picbox{width:96px}
+.picbtn{position:relative;display:block;border:0;padding:0;background:none;cursor:pointer;width:96px}
+.shead #picbox .picbtn img{width:96px;height:96px;object-fit:cover;object-position:center;border-radius:50%;margin:0;border:2px solid var(--line);display:block}
+.picbtn span{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);font-size:11px;font-weight:700;color:var(--gold);background:var(--sf);border:1px solid var(--line);border-radius:999px;padding:1px 8px;white-space:nowrap}
+.lced{display:flex;justify-content:center;background:#0D0B0A;border-radius:14px;padding:8px;margin:0 0 10px}
+.lcw{position:relative;display:inline-block;touch-action:none;line-height:0}
+.lcw img{display:block;max-width:100%;max-height:55vh;width:auto;height:auto;user-select:none;-webkit-user-select:none}
+#lc_box{position:absolute;border:2px solid var(--gold);border-radius:50%;box-shadow:0 0 0 2000px rgba(0,0,0,.55);cursor:move}
+.lcw{overflow:hidden;border-radius:8px}
+#lc_sz{accent-color:var(--gold);border:0;background:none;padding:0}
+#lc_sz{height:28px;margin:0 0 6px}
