@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '29';
+const APP_VERSION = '30';
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
@@ -350,7 +350,7 @@ function dayStart(o){const b=new Date();b.setDate(b.getDate()+o);return new Date
 function dayFrac(d0){let g=0;for(let m=0;m<1440;m+=10)if(isGood(kind(d0+(m+5)*60000)))g++;return g/144}
 function nav(){const dt=new Date(dayStart(dayOff)),y=dt.getFullYear()!==new Date().getFullYear();
   const lab=dayOff===0?'Oggi':dayOff===1?'Domani':dayOff===-1?'Ieri':dt.toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:y?'numeric':undefined});
-  return `<div class="dnav"><button class="link" data-a="day" data-d="-1" aria-label="Giorno precedente">‹</button><b>${lab}</b><button class="link" data-a="day" data-d="1" aria-label="Giorno successivo">›</button></div><p class="info" style="margin:2px 0 6px;text-align:center">Scorri il quadrante di lato per cambiare giorno.</p>`}
+  return `<div class="dnav"><button class="link" data-a="day" data-d="-1" aria-label="Giorno precedente">‹</button><b>${lab}</b><button class="link" data-a="day" data-d="1" aria-label="Giorno successivo">›</button></div>`}
 function other(){const d0=dayStart(dayOff),segs=[];for(let m=0;m<1440;m+=10){const t=kind(d0+(m+5)*60000)[2],l=segs[segs.length-1];if(l&&l.t===t)l.to=(m+10)/60;else segs.push({t,from:m/60,to:(m+10)/60})}
   const good=segs.filter(g=>g.t==='frutto'||g.t==='fiore'),hrs=good.reduce((a,g)=>a+g.to-g.from,0),f=h=>{const mm=Math.round(h*60);return String(Math.floor(mm/60)).padStart(2,'0')+':'+String(mm%60).padStart(2,'0')};
   const win=[];good.forEach(g=>{const l=win[win.length-1];if(l&&Math.abs(l[1]-g.from)<.01)l[1]=g.to;else win.push([g.from,g.to])});
@@ -363,7 +363,7 @@ function today(){if(dayOff!==0)return other();const now=Date.now(),c=kind(now),g
 
 /* ===== Schermate ===== */
 const imgSrc = (b) => b.thumb || '';
-const keyBanner = () => aiReady() ? '' : `<div class="note"><b>Lettura automatica spenta.</b> Per scansionare le etichette serve la chiave dell'IA. <button class="link" data-a="settings">Apri le impostazioni</button></div>`;
+const keyBanner = () => aiReady() || (() => { try { return +localStorage.getItem('cantina.keyLater') > Date.now(); } catch (_) { return false; } })() ? '' : `<div class="note keyban"><b>Lettura automatica spenta.</b> Per leggere le etichette serve la chiave dell'IA.<div class="acts"><button class="btn" data-a="settings">Impostazioni</button><button class="btn" data-a="keylater">Non ora</button></div></div>`;
 /* Bottiglie uguali (una cassa) condividono lo stesso wid: le informazioni si aggiornano insieme. */
 const inCellar = (b) => !b.drunk && !b.pending && !b.wish;
 const widOf = (b) => b.wid || b.id;
@@ -412,8 +412,26 @@ function render() {
   const bs = all.filter((b) => inCellar(b));
   const spent = bs.reduce((a, b) => a + (b.price || 0), 0);
   const val = bs.reduce((a, b) => a + (b.value ?? b.price ?? 0), 0);
-  $('#tot').innerHTML = `<button class="totc" data-a="tab" data-t="${tab === 'stats' ? 'cantina' : 'stats'}" aria-label="${tab === 'stats' ? 'Chiudi le statistiche' : 'Apri le statistiche'}"><span><b>${bs.length}</b>bottiglie</span><span><b>${eur(spent)}</b>speso</span><span><b class="gold">${eur(val)}</b>valore</span></button><p class="statlink">${tab === 'stats' ? '‹ Torna alla cantina' : 'Tocca per le statistiche ›'}</p>`;
-  document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === tab));
+  // intestazione: ogni sezione ha il suo titolo; il riepilogo solo in Cantina
+  const nW = uniqW(bs).length, gain = spent ? Math.round(((val - spent) / spent) * 100) : 0;
+  const c0 = kind(Date.now());
+  const H = {
+    cantina: ['Cantina', new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })],
+    lista: ['Elenco', bs.length + (bs.length === 1 ? ' bottiglia' : ' bottiglie') + ' · ' + nW + (nW === 1 ? ' vino' : ' vini')],
+    stasera: ['Sommelier', (typeof mealLabel === 'function' ? mealLabel() : 'Oggi') + ' · giorno ' + c0[2]],
+    calici: ['Calici', GLASSES.length ? GLASSES.length + (GLASSES.length === 1 ? ' calice' : ' calici') : 'I tuoi bicchieri'],
+    luna: ['Luna', 'Calendario biodinamico'],
+    stats: ['Statistiche', '‹ Cantina', 'cantina'],
+    mappa: ['Mappa', '‹ Statistiche', 'stats'],
+  }[tab] || ['Cantina', ''];
+  $('#ptitle').textContent = H[0];
+  const eb = $('#eyebrow');
+  eb.textContent = H[1];
+  if (H[2]) { eb.dataset.a = 'tab'; eb.dataset.t = H[2]; eb.classList.add('back'); eb.tabIndex = 0; } else { delete eb.dataset.a; eb.classList.remove('back'); eb.tabIndex = -1; }
+  document.body.dataset.tab = tab;
+  $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
+  const navT = tab === 'stats' || tab === 'mappa' ? 'cantina' : tab;
+  document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
   const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
   $('#app').innerHTML = (pages[tab] || cantina)();
   if (tab === 'mappa') setTimeout(initMap, 0);
@@ -512,6 +530,7 @@ function cantina() {
 }
 
 const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+let fltSheetHtml = () => '';
 let flt = { view: 'in', type: '', stat: '', region: '', vint: '', size: '', tag: '', sort: 'az' };
 const tagsOf = (b) => (Array.isArray(b.tags) ? b.tags : []);
 function posSummary(g) {
@@ -553,23 +572,29 @@ function lista(all) {
     if (drunkView) sub = `${esc(exitLabel(b))} il ${new Date(b.drunk.date).toLocaleDateString('it-IT')}${b.drunk.rating ? ' · ' + '★'.repeat(b.drunk.rating) : ''}${b.drunk.notes ? ' · ' + esc(b.drunk.notes.slice(0, 50)) : ''}`;
     else if (V === 'pend') sub = fmt + (n > 1 ? n + ' bottiglie · ' : '') + 'In arrivo' + (b.eta ? ' per il ' + esc(new Date(b.eta).toLocaleDateString('it-IT')) : '') + (b.buyWhere ? ' da ' + esc(b.buyWhere) : '');
     else if (V === 'wish') sub = fmt + esc([b.region, b.buyNote].filter(Boolean).join(' · ') || 'Nei desideri');
-    else sub = fmt + (n > 1 ? n + ' bottiglie · ' + esc(posSummary(g)) : esc(posText(b))) + (st[status(b)] || '');
+    else sub = fmt + (n > 1 ? n + ' bottiglie · ' + esc(posSummary(g)) : esc(posText(b)));
     const tg = tagsOf(b).length ? `<span class="tags">${tagsOf(b).map((t) => `<i>${esc(t)}</i>`).join('')}</span>` : '';
-    rows += `<button class="row" data-a="open" data-id="${esc(b.id)}"><span style="display:flex;gap:12px">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : '<span class="th"></span>'}<span>${esc(name(b))} ${esc(b.vintage || '')}${n > 1 ? ` <b class="qty">×${n}</b>` : ''}<small>${sub}</small>${tg}</span></span><span>${drunkView ? '' : eur(b.value ?? b.price)}</span></button>`;
+    const sp = !drunkView && V === 'in' ? { 'st-now': ['Pronta', 'ok'], 'st-wait': ['Aspetta', 'wait'], 'st-past': ['Aprila', 'past'] }[status(b)] : null;
+    rows += `<button class="row lrow" data-a="open" data-id="${esc(b.id)}">${imgSrc(b) ? `<img class="th" src="${imgSrc(b)}" alt="">` : `<span class="vdot t-${esc(b.type)}">${b.vintage ? String(b.vintage).slice(-2) : 'SA'}</span>`}<span class="lmain"><span class="lname">${esc(name(b))} ${esc(b.vintage || '')}${n > 1 ? ` <b class="qty">×${n}</b>` : ''}</span><small>${sub}</small>${tg}</span><span class="lside">${drunkView ? '' : `<b>${eur(b.value ?? b.price)}</b>`}${sp ? `<i class="spill ${sp[1]}">${sp[0]}</i>` : ''}</span></button>`;
   });
   const uniq = (fn) => [...new Set(pool.map(fn).filter(Boolean))];
   const opt = (arr, cur, lab) => `<option value="">${lab}</option>` + arr.map((v) => `<option ${String(v) === cur ? 'selected' : ''}>${esc(v)}</option>`).join('');
   const nIn = all.filter(inCellar).length, nDr = all.filter((b) => b.drunk).length, nPe = all.filter((b) => !b.drunk && b.pending).length, nWi = uniqW(all.filter((b) => !b.drunk && b.wish)).length;
   const allTags = [...new Set(all.flatMap(tagsOf))].sort((a, b) => a.localeCompare(b, 'it'));
-  const filters = `<div class="flt">
-    <select data-flt="type" aria-label="Tipo">${opt(['rosso', 'bianco', 'bollicine', 'rosato', 'altro'], flt.type, 'Tutti i tipi')}</select>
-    <select data-flt="stat" aria-label="Stato"><option value="">Ogni stato</option>${!drunkView ? [['st-now', 'Pronte da bere'], ['st-wait', 'Da aspettare'], ['st-past', 'Oltre il picco']].map(([v, l]) => `<option value="${v}" ${flt.stat === v ? 'selected' : ''}>${l}</option>`).join('') : ''}</select>
-    <select data-flt="region" aria-label="Zona">${opt(uniq((b) => b.region).sort((a, b) => a.localeCompare(b, 'it')), flt.region, 'Tutte le zone')}</select>
-    <select data-flt="vint" aria-label="Annata">${opt(uniq((b) => b.vintage).sort(), flt.vint, 'Tutte le annate')}</select>
-    ${(() => { const ss = [...new Set(pool.map(sizeMl))].sort((a, b) => a - b); return ss.length > 1 || flt.size ? `<select data-flt="size" aria-label="Formato"><option value="">Tutti i formati</option>${ss.map((v) => `<option value="${v}" ${String(v) === flt.size ? 'selected' : ''}>${esc(sizeName(v))}</option>`).join('')}</select>` : ''; })()}
-    ${allTags.length ? `<select data-flt="tag" aria-label="Lista">${opt(allTags, flt.tag, 'Tutte le liste')}</select>` : ''}
-    <select data-flt="sort" aria-label="Ordine" class="wide"><option value="az" ${flt.sort === 'az' ? 'selected' : ''}>${drunkView ? 'Più recenti prima' : 'Ordine alfabetico'}</option><option value="value" ${flt.sort === 'value' ? 'selected' : ''}>Valore più alto</option><option value="vint" ${flt.sort === 'vint' ? 'selected' : ''}>Annata più vecchia</option>${!drunkView ? `<option value="drink" ${flt.sort === 'drink' ? 'selected' : ''}>Da bere prima</option>` : ''}</select>
-  </div>`;
+  // filtri: pillole per tipo e maturità, il resto nel foglio «Filtri»
+  const TYP = [['rosso', 'Rossi'], ['bianco', 'Bianchi'], ['bollicine', 'Bollicine'], ['rosato', 'Rosati'], ['altro', 'Altri']];
+  const STA = [['st-now', 'Pronte'], ['st-wait', 'Da aspettare'], ['st-past', 'Da aprire presto']];
+  const nAdv = [flt.region, flt.vint, flt.size, flt.tag].filter(Boolean).length + (flt.sort !== 'az' ? 1 : 0);
+  const chip = (k, v, l) => `<button class="fchip${flt[k] === v ? ' on' : ''}" data-a="fchip" data-k="${k}" data-v="${esc(v)}">${esc(l)}</button>`;
+  const adv = [['region', flt.region], ['vint', flt.vint], ['size', flt.size ? sizeName(+flt.size) : ''], ['tag', flt.tag]].filter((x) => x[1]).map(([k, l]) => `<button class="fchip on x" data-a="fclear" data-k="${k}">${esc(l)} ✕</button>`).join('');
+  const filters = `<div class="fchips"><button class="fchip fbtn${nAdv ? ' on' : ''}" data-a="fltsheet"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg>Filtri${nAdv ? ' · ' + nAdv : ''}</button>${adv}${TYP.map(([v, l]) => chip('type', v, l)).join('')}${!drunkView ? STA.map(([v, l]) => chip('stat', v, l)).join('') : ''}</div>`;
+  fltSheetHtml = () => `<h2>Filtri</h2>
+    <label>Zona</label><select data-flt="region">${opt(uniq((b) => b.region).sort((a, b) => a.localeCompare(b, 'it')), flt.region, 'Tutte le zone')}</select>
+    <label>Annata</label><select data-flt="vint">${opt(uniq((b) => b.vintage).sort(), flt.vint, 'Tutte le annate')}</select>
+    <label>Formato</label><select data-flt="size"><option value="">Tutti i formati</option>${[...new Set(pool.map(sizeMl))].sort((a, b) => a - b).map((v) => `<option value="${v}" ${String(v) === flt.size ? 'selected' : ''}>${esc(sizeName(v))}</option>`).join('')}</select>
+    ${allTags.length ? `<label>Lista</label><select data-flt="tag">${opt(allTags, flt.tag, 'Tutte le liste')}</select>` : ''}
+    <label>Ordine</label><select data-flt="sort"><option value="az" ${flt.sort === 'az' ? 'selected' : ''}>${drunkView ? 'Più recenti prima' : 'Ordine alfabetico'}</option><option value="value" ${flt.sort === 'value' ? 'selected' : ''}>Valore più alto</option><option value="vint" ${flt.sort === 'vint' ? 'selected' : ''}>Annata più vecchia</option>${!drunkView ? `<option value="drink" ${flt.sort === 'drink' ? 'selected' : ''}>Da bere prima</option>` : ''}</select>
+    <div class="acts"><button class="btn pri" data-a="fltdone">Fatto</button><button class="btn" data-a="clearflt">Azzera tutto</button></div>`;
   const any = flt.type || flt.stat || flt.region || flt.vint || flt.size || flt.tag || q;
   const prods = words.length ? [...new Set(all.map((b) => b.producer).filter((p) => p && words.every((w) => nrm(p).includes(w))))].slice(0, 3) : [];
   const prodChips = prods.length ? `<div class="acts" style="margin:0 0 8px">${prods.map((p) => `<button class="link prodlink" data-a="producer" data-p="${esc(p)}">Produttore: ${esc(p)} ›</button>`).join('')}</div>` : '';
@@ -577,7 +602,7 @@ function lista(all) {
   const countTxt = V === 'wish' ? gl + (gl === 1 ? ' vino' : ' vini') : nf + (nf === 1 ? ' bottiglia' : ' bottiglie') + (gl < nf ? ' (' + gl + (gl === 1 ? ' vino)' : ' vini)') : '');
   const empty = { in: ' ancora: tocca +', pend: ' in arrivo. Quando ordini un vino, nella sua scheda scegli «In arrivo»', drunk: ' bevuta ancora', wish: ' nei desideri: tocca + per aggiungere un vino che vuoi comprare o assaggiare' }[V];
   const tools = V === 'in' && nIn ? `<div class="acts"><button class="btn" data-a="pdf">Inventario in PDF</button><button class="btn" data-a="carta">Carta dei vini</button><button class="btn" data-a="csv">Esporta in Excel</button><button class="btn" data-a="ics">Promemoria nel calendario</button></div><p class="info" id="pdfmsg"></p>` : '';
-  return keyBanner() + `<div class="seg seg4"><button data-a="view" data-v="in" aria-pressed="${V === 'in'}">Cantina<small>${nIn}</small></button><button data-a="view" data-v="pend" aria-pressed="${V === 'pend'}">In arrivo<small>${nPe}</small></button><button data-a="view" data-v="drunk" aria-pressed="${V === 'drunk'}">Bevute<small>${nDr}</small></button><button data-a="view" data-v="wish" aria-pressed="${V === 'wish'}">Desideri<small>${nWi}</small></button></div><div class="azbar"><div class="srow"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona, lista" value="${esc(q)}"><button class="iconbtn" data-a="scanfind" aria-label="Cerca con il codice a barre"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg></button></div>${jump}</div>${filters}${prodChips}<p class="info">${countTxt}${any ? ' trovati' : ''}${any ? ' <button class="link" data-a="clearflt">Azzera filtri</button>' : ''}</p>` + (f.length ? rows
+  return `<div class="seg seg4"><button data-a="view" data-v="in" aria-pressed="${V === 'in'}">Cantina<small>${nIn}</small></button><button data-a="view" data-v="pend" aria-pressed="${V === 'pend'}">In arrivo<small>${nPe}</small></button><button data-a="view" data-v="drunk" aria-pressed="${V === 'drunk'}">Bevute<small>${nDr}</small></button><button data-a="view" data-v="wish" aria-pressed="${V === 'wish'}">Desideri<small>${nWi}</small></button></div><div class="azbar"><div class="srow"><input id="q" type="search" placeholder="Cerca per produttore, cuvée, annata, zona, lista" value="${esc(q)}"><button class="iconbtn" data-a="scanfind" aria-label="Cerca con il codice a barre"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M7 8v8M10 8v8M13 8v8M17 8v8"/></svg></button></div>${jump}</div>${filters}${prodChips}<p class="info">${countTxt}${any ? ' trovati' : ''}${any ? ' <button class="link" data-a="clearflt">Azzera filtri</button>' : ''}</p>` + (f.length ? rows
     : `<p class="empty">${V === 'wish' ? 'Nessun vino' : 'Nessuna bottiglia'}${any ? ' trovata' : empty}.</p>`) + tools;
 }
 
@@ -698,54 +723,68 @@ async function openBottle(id, pre) {
   }).join('');
   const d = $('#dlg');
   const gIn = grp.filter(inCellar).length, gPe = grp.filter((x) => !x.drunk && x.pending).length, gDr = grp.filter((x) => x.drunk).length;
-  d.innerHTML = `<p class="eyebrow">${b.wish ? (id ? 'Vino nei desideri' : 'Nuovo vino nei desideri') : id ? 'Scheda bottiglia' : 'Nuova bottiglia'}</p><h2 id="dtitle" class="dtitle"></h2><div class="chips" id="dchips"></div><div id="dprod"></div>${grp.length > 1 ? `<p class="note">Bottiglie uguali: <b>${grp.length}</b> (${[gIn ? gIn + ' in cantina' : '', gPe ? gPe + ' in arrivo' : '', gDr ? gDr + ' bevute' : ''].filter(Boolean).join(', ')}). Le informazioni che modifichi qui valgono per tutte; posizione e stato solo per questa.</p>` : ''}${b.drunk ? `<p class="note"><b>${esc(exitLabel(b))} il ${esc(new Date(b.drunk.date).toLocaleDateString('it-IT'))}</b>${b.drunk.rating ? ' · voto ' + '★'.repeat(b.drunk.rating) + '☆'.repeat(5 - b.drunk.rating) : ''}${b.drunk.notes ? '<br>' + esc(b.drunk.notes) : ''}</p>` : ''}<div id="picbox"></div>
-  <div id="photoctl">
+  const sizeOpts = (() => { const ml = sizeMl(b), known = SIZES.some((x) => x[0] === ml); return SIZES.map((x) => `<option value="${x[0]}" ${x[0] === ml ? 'selected' : ''}>${x[1] ? esc(x[1]) + ' · ' : ''}${x[2]}</option>`).join('') + `<option value="other" ${known ? '' : 'selected'}>Altro formato…</option>`; })();
+  const knownSize = SIZES.some((x) => x[0] === sizeMl(b));
+  const nPend = grp.filter((x) => !x.drunk && x.pending).length;
+  d.innerHTML = `<div class="shtop"><button class="link plain" id="cl" type="button">Chiudi</button><button class="link plain strong" id="sv2" type="button">Salva</button></div>
+  <div class="shead"><div id="picbox"></div><div class="sh-t"><p class="eyebrow">${b.wish ? (id ? 'Vino nei desideri' : 'Nuovo vino nei desideri') : id ? 'Scheda bottiglia' : 'Nuova bottiglia'}</p><h2 id="dtitle" class="dtitle"></h2><div class="chips" id="dchips"></div><div id="dprod"></div></div></div>
+  ${grp.length > 1 ? `<p class="note">Bottiglie uguali: <b>${grp.length}</b> (${[gIn ? gIn + ' in cantina' : '', gPe ? gPe + ' in arrivo' : '', gDr ? gDr + ' uscite' : ''].filter(Boolean).join(', ')}). Le informazioni valgono per tutte; posizione e stato solo per questa.</p>` : ''}${b.drunk ? `<p class="note"><b>${esc(exitLabel(b))} il ${esc(new Date(b.drunk.date).toLocaleDateString('it-IT'))}</b>${b.drunk.rating ? ' · voto ' + '★'.repeat(b.drunk.rating) + '☆'.repeat(5 - b.drunk.rating) : ''}${b.drunk.notes ? '<br>' + esc(b.drunk.notes) : ''}</p>` : ''}
+  <div class="sacts"><button class="btn" id="chg" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto</button><button class="btn" id="enr" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>Cerca dati con l'IA</button>${id && b.shelf && inCellar(b) ? `<button class="btn icon" data-a="locate" data-id="${esc(b.id)}" type="button" aria-label="Dov'è sullo scaffale"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></button>` : ''}</div>
+  <div id="photoctl" class="photopanel">
   <p class="info">Fotografa l'etichetta: compilo io i campi, tu controlli.</p>
-  <div class="acts"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="pasteimg" type="button">Incolla immagine</button></div>
-  <div class="acts" style="margin-top:8px"><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca etichetta online</a></div>
+  <div class="pgrid"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="pasteimg" type="button">Incolla</button><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca online</a><label class="btn">Retro-etichetta<input type="file" accept="image/*" hidden class="rph"></label></div>
+  <div class="acts" id="photoact" hidden><button class="btn" id="whole" type="button" hidden></button></div>
   <div id="pbox" class="pbox" contenteditable="true" inputmode="none">Per incollare un'immagine trovata online: tieni premuto qui e scegli Incolla.</div>
   </div>
-  <div class="acts" id="photoact" hidden><button class="btn" id="whole" type="button" hidden></button><button class="btn" id="chg" type="button">Cambia foto</button></div>
-  <div class="acts" style="margin-top:8px"><button class="btn" id="enr" type="button">Cerca dati ed etichetta</button><label class="btn">Retro-etichetta<input type="file" accept="image/*" hidden class="rph"></label></div>
   <div id="retbox"></div>
   <p class="info" id="scs"></p>
-  <label>Produttore</label><input id="f_producer" value="${esc(b.producer)}">
-  <label>Cuvée o etichetta</label><input id="f_cuvee" value="${esc(b.cuvee)}">
-  <div class="two"><div><label>Annata</label><input id="f_vintage" inputmode="numeric" value="${esc(b.vintage)}"></div>
-  <div><label>Tipo</label><select id="f_type">${['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].map((t) => `<option ${b.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
-  <label>Formato</label><select id="f_size">${(() => { const ml = sizeMl(b), known = SIZES.some((x) => x[0] === ml); return SIZES.map((x) => `<option value="${x[0]}" ${x[0] === ml ? 'selected' : ''}>${x[1] ? esc(x[1]) + ' · ' : ''}${x[2]}</option>`).join('') + `<option value="other" ${known ? '' : 'selected'}>Altro formato…</option>`; })()}</select>
-  <div class="two"><div><label>Uvaggio</label><input id="f_grapes" placeholder="es. Nebbiolo 100%" value="${esc(b.grapes)}"></div><div><label>Gradazione (%)</label><input id="f_abv" inputmode="decimal" placeholder="es. 14" value="${esc(b.abv)}"></div></div>
-  <div id="f_sizeow" ${SIZES.some((x) => x[0] === sizeMl(b)) ? 'hidden' : ''}><label>Capacità in centilitri</label><input id="f_sizeo" inputmode="decimal" placeholder="es. 25" value="${SIZES.some((x) => x[0] === sizeMl(b)) ? '' : esc(String(sizeMl(b) / 10).replace('.', ','))}"></div>
-  ${b.drunk ? '' : `<div class="two"><div><label>Stato</label><select id="f_state"><option value="in" ${state0 === 'in' ? 'selected' : ''}>In cantina</option><option value="pend" ${state0 === 'pend' ? 'selected' : ''}>In arrivo (ordinata)</option><option value="wish" ${state0 === 'wish' ? 'selected' : ''}>Nei desideri</option></select></div>
-  <div>${id ? `<label>Aggiungi uguali</label><input id="f_qty" type="number" min="0" max="48" inputmode="numeric" value="0">` : `<label>Quantità</label><input id="f_qty" type="number" min="1" max="48" inputmode="numeric" value="1">`}</div></div>
-  <div id="f_etaw" ${state0 === 'pend' ? '' : 'hidden'}><label>Consegna prevista</label><input id="f_eta" type="date" value="${esc(b.eta || '')}"></div>
-  <p class="info" id="f_wishi" ${state0 === 'wish' ? '' : 'hidden'}>Quando lo compri, cambia lo stato in «In cantina» o «In arrivo».</p>${state0 === 'pend' && grp.filter((x) => !x.drunk && x.pending).length > 1 ? `<p class="info">Quando arrivano, scegli «In cantina»: cambio stato a tutte le ${grp.filter((x) => !x.drunk && x.pending).length} bottiglie in arrivo e poi le posizioni sullo scaffale.</p>` : ''}`}
-  <label>Zona o denominazione</label><input id="f_region" value="${esc(b.region)}">
-  <div class="two"><div><label>Prezzo d'acquisto (€)</label><input id="f_price" inputmode="decimal" value="${esc(b.price)}"></div>
-  <div><label>Valore di mercato (€)</label><input id="f_value" inputmode="decimal" value="${esc(b.value)}"></div></div>
-  <p class="info" id="f_basis">${autoVal ? (valueNote ? 'Stima non verificata da ricerca online: ' + esc(valueNote) : 'Stima automatica non verificata: puoi correggerla.') : ''}</p>
-  <a class="link" id="ws" target="_blank" rel="noopener" href="#">Cerca il prezzo su Wine-Searcher</a>
-  <div class="two"><div><label>Data d'acquisto</label><input id="f_bdate" type="date" value="${esc(b.buyDate || '')}"></div>
-  <div><label>Dove o da chi</label><input id="f_bwhere" list="dl_where" autocomplete="off" placeholder="Enoteca, cantina, online…" value="${esc(b.buyWhere)}"></div></div>
+
+  <h4 class="gh">Il vino</h4><div class="grp">
+  <div class="fr"><label for="f_producer">Produttore</label><input id="f_producer" placeholder="Obbligatorio" value="${esc(b.producer)}"></div>
+  <div class="fr"><label for="f_cuvee">Cuvée</label><input id="f_cuvee" placeholder="Etichetta" value="${esc(b.cuvee)}"></div>
+  <div class="fr"><label for="f_vintage">Annata</label><input id="f_vintage" inputmode="numeric" placeholder="es. 2019" value="${esc(b.vintage)}"></div>
+  <div class="fr"><label for="f_type">Tipo</label><select id="f_type">${['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].map((t) => `<option ${b.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div>
+  <div class="fr"><label for="f_size">Formato</label><select id="f_size">${sizeOpts}</select></div>
+  <div class="fr" id="f_sizeow" ${knownSize ? 'hidden' : ''}><label for="f_sizeo">Centilitri</label><input id="f_sizeo" inputmode="decimal" placeholder="es. 25" value="${knownSize ? '' : esc(String(sizeMl(b) / 10).replace('.', ','))}"></div>
+  <div class="fr"><label for="f_region">Zona</label><input id="f_region" placeholder="Denominazione" value="${esc(b.region)}"></div>
+  <div class="fr"><label for="f_grapes">Uvaggio</label><input id="f_grapes" placeholder="es. Nebbiolo 100%" value="${esc(b.grapes)}"></div>
+  <div class="fr"><label for="f_abv">Gradazione %</label><input id="f_abv" inputmode="decimal" placeholder="es. 14" value="${esc(b.abv)}"></div>
+  </div>
+
+  ${b.drunk ? '' : `<h4 class="gh">Stato e posizione</h4><div class="grp">
+  <div class="fr"><label for="f_state">Stato</label><select id="f_state"><option value="in" ${state0 === 'in' ? 'selected' : ''}>In cantina</option><option value="pend" ${state0 === 'pend' ? 'selected' : ''}>In arrivo</option><option value="wish" ${state0 === 'wish' ? 'selected' : ''}>Nei desideri</option></select></div>
+  <div class="fr"><label for="f_qty">${id ? 'Aggiungi uguali' : 'Quantità'}</label><input id="f_qty" type="number" min="${id ? 0 : 1}" max="48" inputmode="numeric" value="${id ? 0 : 1}"></div>
+  <div class="fr" id="f_etaw" ${state0 === 'pend' ? '' : 'hidden'}><label for="f_eta">Consegna</label><input id="f_eta" type="date" value="${esc(b.eta || '')}"></div>
+  <div id="f_posw" ${state0 === 'in' ? '' : 'hidden'}><div class="fr"><label for="f_pos">Posizione</label><select id="f_pos">${opts}</select></div><div class="fb"><button class="link" id="ffree" type="button">Scegli il primo posto libero</button></div></div>
+  </div>
+  <p class="info" id="f_wishi" ${state0 === 'wish' ? '' : 'hidden'}>Quando lo compri, cambia lo stato in «In cantina» o «In arrivo».</p>${state0 === 'pend' && nPend > 1 ? `<p class="info">Quando arrivano, scegli «In cantina»: cambio stato a tutte le ${nPend} bottiglie in arrivo e poi le posizioni.</p>` : ''}`}
+
+  <h4 class="gh">Acquisto e valore</h4><div class="grp">
+  <div class="fr"><label for="f_price">Pagato €</label><input id="f_price" inputmode="decimal" placeholder="Prezzo d'acquisto" value="${esc(b.price)}"></div>
+  <div class="fr"><label for="f_value">Valore €</label><input id="f_value" inputmode="decimal" placeholder="Di mercato" value="${esc(b.value)}"></div>
+  <div class="fb"><p class="info" id="f_basis">${autoVal ? (valueNote ? 'Stima non verificata da ricerca online: ' + esc(valueNote) : 'Stima automatica non verificata: puoi correggerla.') : ''}</p><a class="link" id="ws" target="_blank" rel="noopener" href="#">Cerca il prezzo su Wine-Searcher</a></div>
+  <div class="fr"><label for="f_bdate">Data</label><input id="f_bdate" type="date" value="${esc(b.buyDate || '')}"></div>
+  <div class="fr"><label for="f_bwhere">Da</label><input id="f_bwhere" list="dl_where" autocomplete="off" placeholder="Enoteca, cantina, online…" value="${esc(b.buyWhere)}"></div>
+  <div class="fr"><label for="f_bnote">Note</label><input id="f_bnote" placeholder="Cassa da 6, regalo…" value="${esc(b.buyNote)}"></div>
+  <div class="fr"><label for="f_lot">Lotto</label><input id="f_lot" placeholder="Dalla retro-etichetta" value="${esc(b.lot)}"></div>
+  <div class="fr"><label for="f_tags">Liste</label><input id="f_tags" autocomplete="off" placeholder="Regali, ristorante…" value="${esc(tagsOf(b).join(', '))}"></div>
+  <div class="fb tagpick">${[...new Set(Object.values(S.bottles).flatMap(tagsOf))].sort((a, c) => a.localeCompare(c, 'it')).map((t) => `<button type="button" class="link" data-tag="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
+  </div>
   <datalist id="dl_where">${[...new Set(Object.values(S.bottles).map((x) => x.buyWhere).filter(Boolean))].sort((a, c) => a.localeCompare(c, 'it')).map((w) => `<option value="${esc(w)}"></option>`).join('')}</datalist>
-  <label>Note sull'acquisto</label><input id="f_bnote" placeholder="Es. cassa da 6, regalo, contatto del venditore…" value="${esc(b.buyNote)}">
-  <label>Lotto</label><input id="f_lot" placeholder="Dalla retro-etichetta, es. L.2017/04" value="${esc(b.lot)}">
-  <label>Liste personali</label><input id="f_tags" autocomplete="off" placeholder="Es. regali, ristorante, da riprovare" value="${esc(tagsOf(b).join(', '))}">
-  <div class="tagpick">${[...new Set(Object.values(S.bottles).flatMap(tagsOf))].sort((a, c) => a.localeCompare(c, 'it')).map((t) => `<button type="button" class="link" data-tag="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
-  <label style="margin-top:12px">Quando berla</label><div id="dwin"></div><textarea id="f_drink" rows="3">${esc(b.drink)}</textarea>
-  <label>Abbinamenti consigliati</label><textarea id="f_pairing" rows="2">${esc(b.pairing)}</textarea>
-  <div class="info" id="rext"></div>
-  <h3 class="sub">Servizio</h3><div id="svcbox">${serviceHtml(b)}</div>
-  <div id="f_posw" ${state0 === 'in' || state0 === 'drunk' ? '' : 'hidden'} ${b.drunk ? 'hidden' : ''}><label>Posizione</label><select id="f_pos">${opts}</select><div class="acts" style="margin:-4px 0 12px"><button class="btn" id="ffree" type="button">Primo posto libero</button>${id && b.shelf && inCellar(b) ? `<button class="btn" data-a="locate" data-id="${esc(b.id)}" type="button">Dov'è sullo scaffale?</button>` : ''}</div></div>
-  <h3 class="sub">Degustazioni</h3><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
+
+  <h4 class="gh">Quando berla</h4><div class="grp"><div class="fb"><div id="dwin"></div><textarea id="f_drink" rows="3" placeholder="Finestra ideale, picco, se è pronta…">${esc(b.drink)}</textarea></div></div>
+  <h4 class="gh">Abbinamenti</h4><div class="grp"><div class="fb"><textarea id="f_pairing" rows="2" placeholder="Piatti consigliati">${esc(b.pairing)}</textarea><div class="info" id="rext"></div></div></div>
+  <h4 class="gh">Servizio</h4><div id="svcbox">${serviceHtml(b)}</div>
+  <h4 class="gh">Degustazioni</h4><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
   <details class="more aiinfo"><summary>Produttore, vino, produzione e annata</summary>
   <label>Il produttore</label><textarea id="f_info" rows="6">${esc(b.info)}</textarea>
   <label>Sulla cuvée e sulla bottiglia</label><textarea id="f_winfo" rows="7">${esc(b.winfo)}</textarea>
   <label>Produzione e bottiglie prodotte</label><textarea id="f_prod" rows="3">${esc(b.prod)}</textarea>
   <label>Sull'annata</label><textarea id="f_vinfo" rows="4">${esc(b.vinfo)}</textarea>
   <div class="info" id="esrc"></div></details>
-  <p class="info">Le informazioni automatiche sono stime dell'IA e possono contenere errori: controllale prima di fidarti.</p>
-  <div class="acts"><button class="btn pri" id="sv">Salva</button>${id ? '' : '<button class="btn" id="svn">Salva e aggiungi un\'altra</button>'}<button class="btn" id="cl">Annulla</button>${id && inCellar(b) ? '<button class="btn" id="drk">Bevuta o regalata</button>' : ''}${b.drunk ? '<button class="btn" id="undrk">Rimetti in cantina</button>' : ''}${id ? '<button class="btn" id="del">Elimina</button>' : ''}</div>`;
+  <p class="info">Le informazioni automatiche sono stime dell'IA: controllale prima di fidarti.</p>
+  <div class="acts">${id ? '' : '<button class="btn" id="svn">Salva e aggiungi un\'altra</button>'}${id ? '<button class="btn danger" id="del">Elimina</button>' : ''}</div>
+  <div class="sbar"><button class="btn pri" id="sv">Salva</button>${id && inCellar(b) ? '<button class="btn" id="drk">Bevuta o regalata</button>' : ''}${b.drunk ? '<button class="btn" id="undrk">Rimetti in cantina</button>' : ''}</div>`;
 
   const g = (k) => $('#f_' + k).value.trim();
   const scs = (t) => { const el = $('#scs'); el.textContent = t; if (t) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
@@ -805,7 +844,7 @@ async function openBottle(id, pre) {
     showPic();
   };
   showPic();
-  $('#chg').onclick = () => { $('#photoctl').hidden = false; $('#photoact').hidden = true; $('#photoctl').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
+  $('#chg').onclick = () => { const p = $('#photoctl'); p.hidden = !p.hidden; if (!p.hidden) p.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); };
   $('#whole').onclick = async () => { useFull = !useFull; if (!labelThumb) thumb = await makeThumb(cur()); showPic(); };
 
   const ws = () => {
@@ -1101,6 +1140,7 @@ async function openBottle(id, pre) {
     } else if (made.length) { msg(made.length + ' bottiglie uguali aggiunte.'); setTimeout(() => msg(''), 4000); }
   };
   $('#sv').onclick = () => { haptic(); commit(build()); };
+  $('#sv2').onclick = () => $('#sv').click();
   if ($('#svn')) $('#svn').onclick = async () => {
     const nb = build();
     await commit(nb);
@@ -1235,6 +1275,20 @@ async function bulkEnrich(mode) {
   $('#bk_x').textContent = 'Chiudi'; $('#bk_x').onclick = () => d.close();
   render();
 }
+function foldSections(d) {
+  // raggruppa ogni titolo h3 delle impostazioni in una sezione che si apre e chiude
+  let cur = null;
+  [...d.children].forEach((el) => {
+    if (el.matches('h2')) return;
+    if (el.querySelector('[data-a=appupdate]') || el.querySelector('#c_close')) { cur = null; return; }
+    if (el.matches('h3')) {
+      cur = document.createElement('details'); cur.className = 'fold';
+      const sm = document.createElement('summary'); sm.textContent = el.textContent; cur.append(sm);
+      el.replaceWith(cur); return;
+    }
+    if (cur) cur.append(el);
+  });
+}
 function openSettings() {
   const c = getCfg();
   const d = $('#dlg2');
@@ -1298,6 +1352,7 @@ function openSettings() {
   $('#b_csv').onchange = importCsv;
   $('#o_go').onclick = optimizePhotos;
   bindBackupSection();
+  foldSections(d);
   d.onclose = null;
   d.showModal();
 }
@@ -1407,6 +1462,11 @@ document.addEventListener('click', (e) => {
   else if (a === 'newShelf') openShelf(null);
   else if (a === 'settings') openSettings();
   else if (a === 'appupdate') forceUpdate();
+  else if (a === 'fchip') { const k = t.dataset.k; flt[k] = flt[k] === t.dataset.v ? '' : t.dataset.v; render(); }
+  else if (a === 'fclear') { flt[t.dataset.k] = ''; render(); }
+  else if (a === 'fltsheet') { const d2 = $('#dlg2'); d2.innerHTML = fltSheetHtml(); d2.onclose = null; if (!d2.open) d2.showModal(); }
+  else if (a === 'fltdone') { $('#dlg2').close(); }
+  else if (a === 'keylater') { try { localStorage.setItem('cantina.keyLater', String(Date.now() + 30 * 86400000)); } catch (_) {} render(); }
   else if (a === 'bkwizard') { const d1 = $('#dlg2'); if (d1.open) d1.close(); openWizard(); }
   else if (a === 'bklater') { try { localStorage.setItem('cantina.bkLater', String(Date.now() + 14 * 86400000)); } catch (_) {} render(); }
   else if (a === 'producer') producerPage(t.dataset.p);
@@ -1421,7 +1481,7 @@ document.addEventListener('click', (e) => {
   else if (a === 'open') openBottle(t.dataset.id);
   else if (a === 'jump') { const el = document.getElementById('az-' + (t.dataset.l === '#' ? 'x' : t.dataset.l)); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   else if (a === 'view') { flt.view = t.dataset.v; flt.stat = ''; if (flt.view === 'drunk' && flt.sort === 'drink') flt.sort = 'az'; render(); }
-  else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '', tag: '' }; q = ''; render(); }
+  else if (a === 'clearflt') { flt = { ...flt, type: '', stat: '', region: '', vint: '', size: '', tag: '', sort: 'az' }; q = ''; if ($('#dlg2').open) $('#dlg2').close(); render(); }
   else if (a === 'pdf') exportPdf();
   else if (a === 'carta') openCarta();
   else if (a === 'glasses') { ['#dlg', '#dlg2'].forEach((x) => { if ($(x).open) $(x).close(); }); tab = 'calici'; render(); window.scrollTo({ top: 0 }); }

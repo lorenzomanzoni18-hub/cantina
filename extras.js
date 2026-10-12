@@ -69,14 +69,14 @@ function calendar() {
     for (let m = 0; m < 12; m++) ms += `<button class="ym${calY === now.getFullYear() && m === now.getMonth() ? ' cur' : ''}" data-a="calmonth" data-m="${m}"><b>${MESI[m].slice(0, 3)}</b><span class="mg">${monthGrid(calY, m, true)}</span></button>`;
     return `<div class="cal calwrap"><div class="calbar"><span></span><span class="calbar-r">${tbtn}${jump}</span></div>
       <div class="calhead"><h2>${calY}</h2><span><button class="link" data-a="cal" data-d="-1" aria-label="Anno precedente">‹</button><button class="link" data-a="cal" data-d="1" aria-label="Anno successivo">›</button></span></div>
-      <div class="yg">${ms}</div><p class="info" style="margin:8px 0 0">Tocca un mese per aprirlo. Scorri di lato per cambiare anno.</p></div>`;
+      <div class="yg">${ms}</div></div>`;
   }
   return `<div class="cal calwrap"><div class="calbar"><button class="link" data-a="calyear">‹ ${calY}</button><span class="calbar-r">${tbtn}${jump}</span></div>
     <div class="calhead"><h2>${MESI[calM]} <small>${calY}</small></h2><span><button class="link" data-a="cal" data-d="-1" aria-label="Mese precedente">‹</button><button class="link" data-a="cal" data-d="1" aria-label="Mese successivo">›</button></span></div>
     <div class="wd">${['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((x) => `<span>${x}</span>`).join('')}</div>
     <div class="mgrid">${monthGrid(calY, calM, false)}</div>
     <p class="info calleg"><span><i style="background:#4C9A6A"></i>buono</span><span><i style="background:#D9A441"></i>solo certi orari</span><span><i style="background:#B85C5C"></i>da evitare</span><span><em class="ph full"></em>luna piena</span><span><em class="ph new"></em>luna nuova</span></p>
-    <p class="info" style="margin:0">Scorri il calendario di lato per cambiare mese. Tocca un giorno per vedere gli orari.</p></div>`;
+    </div>`;
 }
 function luna() { return calendar() + '<div id="lunaday">' + today() + '</div>'; }
 
@@ -131,8 +131,8 @@ function mealLabel() { return { colazione: 'Oggi', pranzo: 'A pranzo', aperitivo
 function stasera() {
   const c = kind(Date.now()), good = isGood(c);
   const n = Object.values(S.bottles).filter((b) => inCellar(b)).length;
-  const seg = `<div class="seg"><button data-a="pmode" data-m="dish" aria-pressed="${pairMode === 'dish'}">Un piatto</button><button data-a="pmode" data-m="menu" aria-pressed="${pairMode === 'menu'}">Un menu</button><button data-a="pmode" data-m="ask" aria-pressed="${pairMode === 'ask'}">Chiedi</button></div>`;
-  const head = keyBanner() + `<button class="qc glassbtn" data-a="glasses"><span class="qi wait"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10l-1 7a4 4 0 0 1-8 0zM12 14v6M8 21h8"/></svg></span><span><b>I miei calici</b><small>${GLASSES.length ? GLASSES.length + ' calici: tocca per vederli e sapere cosa servirci' : 'Fotografali e li riconosco io: poi ti dico cosa servirci'}</small></span></button><div class="note"><b>${mealLabel()}</b>: la Luna è in ${c[1]}, giorno ${c[2]}. ${good ? 'Buon momento per aprire un vino.' : 'Secondo il calendario biodinamico il vino è più chiuso: se puoi, aspetta.'}</div>` + seg;
+  const seg = `<div class="seg seg3"><button data-a="pmode" data-m="dish" aria-pressed="${pairMode === 'dish'}">Un piatto</button><button data-a="pmode" data-m="menu" aria-pressed="${pairMode === 'menu'}">Un menu</button><button data-a="pmode" data-m="ask" aria-pressed="${pairMode === 'ask'}">Chiedi</button></div>`;
+  const head = seg;
   if (pairMode === 'ask') return head + askView();
   if (pairMode === 'menu') return head + `<label for="menu">Il menu, una portata per riga</label>
   <textarea id="menu" rows="6" placeholder="Aperitivo: crudo di gamberi e ostriche&#10;Primo: risotto ai funghi porcini&#10;Secondo: guancia di manzo brasata&#10;Formaggi: pecorino stagionato&#10;Dolce: tarte tatin">${esc(menuText)}</textarea>
@@ -573,7 +573,7 @@ function stats() {
   const avgR = rated.length ? (sum(rated, (b) => b.drunk.rating) / rated.length) : 0;
   const tile = (v, l, cls) => `<div class="tile"><b class="${cls || ''}">${v}</b><span>${l}</span></div>`;
   const sec = (t, body, note) => `<section class="stat"><h3>${t}</h3>${body}${note ? `<p class="info" style="margin:6px 0 0">${note}</p>` : ''}</section>`;
-  return `<div class="tiles">${tile(inC.length, 'bottiglie in cantina')}${tile(String(+litres.toFixed(1)).replace('.', ',') + ' L', 'di vino')}${tile(eur(val), 'valore stimato')}${tile(eur(spent), 'speso')}${tile((gain >= 0 ? '+' : '') + eur(gain), both.length ? 'differenza valore − prezzo (' + (gainPct >= 0 ? '+' : '') + Math.round(gainPct) + '%)' : 'serve prezzo e valore', gain >= 0 ? 'up' : 'down')}${(() => { const pe = all.filter((b) => !b.drunk && b.pending).length; return pe ? tile(pe, 'in arrivo') : ''; })()}${gone.length ? tile(gone.length, 'regalate o uscite in altro modo') : ''}${tile(drunk.length, 'bevute' + (avgR ? ' · voto medio ' + avgR.toFixed(1).replace('.', ',') + '★' : ''))}</div>`
+  return `<button class="maplink" data-a="tab" data-t="mappa"><span><b>Mappa delle zone</b><small>Dove nascono i tuoi vini</small></span><span>›</span></button><div class="tiles">${tile(inC.length, 'bottiglie in cantina')}${tile(String(+litres.toFixed(1)).replace('.', ',') + ' L', 'di vino')}${tile(eur(val), 'valore stimato')}${tile(eur(spent), 'speso')}${tile((gain >= 0 ? '+' : '') + eur(gain), both.length ? 'differenza valore − prezzo (' + (gainPct >= 0 ? '+' : '') + Math.round(gainPct) + '%)' : 'serve prezzo e valore', gain >= 0 ? 'up' : 'down')}${(() => { const pe = all.filter((b) => !b.drunk && b.pending).length; return pe ? tile(pe, 'in arrivo') : ''; })()}${gone.length ? tile(gone.length, 'regalate o uscite in altro modo') : ''}${tile(drunk.length, 'bevute' + (avgR ? ' · voto medio ' + avgR.toFixed(1).replace('.', ',') + '★' : ''))}</div>`
     + (() => { const ks = Object.keys(HIST).sort().slice(-12); return ks.length > 1 ? sec('Valore della cantina nel tempo', bars(ks.map((k) => ({ l: new Date(k + '-15').toLocaleDateString('it-IT', { month: 'short', year: '2-digit' }), v: HIST[k].v || 0, s: HIST[k].n + ' bottiglie' })), eur), 'Un valore al mese, registrato quando apri l\'app.') : ''; })()
     + sec('Maturità', bars(mat))
     + sec('Per tipo', bars(byType))

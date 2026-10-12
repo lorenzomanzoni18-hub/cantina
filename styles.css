@@ -378,3 +378,119 @@ nav button{font-size:10.5px}
 #retbox .retro.big img{width:100%;height:auto;max-height:70vh;object-fit:contain}
 .howseg{flex-wrap:wrap}.howseg button{flex:1 1 30%;font-size:13px;padding:8px 4px}
 .tiles .tile b{font-size:20px}
+
+/* ===== v30 restyling ===== */
+body{padding-top:env(safe-area-inset-top,0px)}
+.top{align-items:flex-end;padding-top:10px}
+.hd{display:flex;flex-direction:column;min-width:0}
+.eyebrow2{border:0;background:none;padding:0;margin:0;text-align:left;font:600 12px/1.4 "Plus Jakarta Sans",system-ui,sans-serif;letter-spacing:1.5px;text-transform:uppercase;color:var(--mute);cursor:default;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eyebrow2.back{color:var(--gold);cursor:pointer;letter-spacing:.5px;text-transform:none;font-size:15px}
+#ptitle{font-size:40px;line-height:1.05;padding-top:2px}
+.topbtns{display:flex;gap:8px;flex:none}
+.topbtns .gear{margin:0 0 4px}
+
+/* riepilogo */
+.tot{margin:14px 0 12px}
+.tot:empty{display:none}
+.sumc{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--sf);border:1px solid var(--line);border-radius:18px;padding:14px 16px;color:var(--ink);text-align:left;cursor:pointer;font:inherit}
+.sum-l{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum-l small{font-size:12.5px;color:var(--mute)}
+.sum-l b{font-size:26px;font-weight:800;letter-spacing:-.3px}
+.sum-l b i{font-style:normal;font-size:13px;font-weight:700;margin-left:6px;vertical-align:3px}
+.sum-l b i.up{color:#8FD1A4}.sum-l b i.down{color:#F09A9C}
+.sum-r{color:var(--gold);font-size:14px;font-weight:600;flex:none}
+
+/* banner chiave */
+.keyban{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;background:var(--sf);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:14px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+.keyban .link{padding:4px 10px;font-size:13px}
+
+/* segmenti a tre */
+.seg3{display:flex;background:var(--sf);border-radius:12px;padding:3px;gap:0;border:0;margin:6px 0 14px}
+.seg3 button{flex:1;border:0;border-radius:9px;padding:8px 0;background:none;color:var(--mute);font-weight:600;font-size:13.5px;min-width:0}
+.seg3 button[aria-pressed=true]{background:var(--sf2);color:var(--ink);border:0}
+
+/* filtri a pillole */
+.fchips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.fchips::-webkit-scrollbar{display:none}
+.fchip{flex:none;border:1px solid var(--line);background:none;color:var(--mute);border-radius:999px;padding:6px 12px;font:600 13px/1.2 "Plus Jakarta Sans",system-ui,sans-serif;cursor:pointer;white-space:nowrap}
+.fchip.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.fchip.fbtn{color:var(--gold);border-color:#4A3E2C}
+.fchip.fbtn.on{background:var(--gold);color:#121010;border-color:var(--gold)}
+.fchip.x{background:var(--sf2);color:var(--ink);border-color:var(--line)}
+
+/* righe dell'elenco */
+.lrow{align-items:center;gap:12px;padding:10px 0;color:var(--ink);font:inherit}
+.lrow .th{width:40px;height:52px;border-radius:8px}
+.vdot{width:40px;height:40px;border-radius:20px;flex:none;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;background:var(--altro)}
+.vdot.t-rosso{background:radial-gradient(circle at 34% 28%,#C2627A,#8A2A42 50%,#4A1222)}
+.vdot.t-bianco{background:radial-gradient(circle at 34% 28%,#F6E8B4,#D6BE74 50%,#94803F);color:#121010}
+.vdot.t-bollicine{background:radial-gradient(circle at 34% 28%,#E2F0E6,#9DBDAC 55%,#6A8B79);color:#121010}
+.vdot.t-rosato{background:radial-gradient(circle at 34% 28%,#F8D2D2,#D98B8B 55%,#A85F5F);color:#121010}
+.vdot.t-altro{background:radial-gradient(circle at 34% 28%,#B9C2BC,#7A857F 55%,#525B56)}
+.lmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.lname{font-weight:600;font-size:15.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lmain small{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lmain .tags{margin-top:3px}
+.lside{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.lside b{font-size:14.5px;font-weight:700}
+.spill{font-style:normal;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap}
+.spill.ok{background:#23382A;color:#8FD1A4}.spill.wait{background:#3D2E17;color:#E6B95C}.spill.past{background:#3A2224;color:#F09A9C}
+
+/* link alla mappa dalle statistiche */
+.maplink{width:100%;display:flex;align-items:center;justify-content:space-between;background:var(--sf);border:1px solid var(--line);border-radius:16px;padding:13px 16px;color:var(--ink);font:600 15px/1.3 "Plus Jakarta Sans",system-ui,sans-serif;cursor:pointer;margin:4px 0 14px;text-align:left}
+
+/* scheda bottiglia */
+.shtop{position:sticky;top:-26px;z-index:3;display:flex;justify-content:space-between;align-items:center;margin:-14px -18px 8px;padding:8px 14px;background:var(--sf)}
+.link.plain{background:none;border:0;padding:6px 4px;font-size:16px;color:var(--gold)}
+.link.plain.strong{font-weight:700}
+.shead{display:flex;gap:14px;align-items:flex-start;margin:4px 0 12px}
+.shead #picbox{flex:none;width:92px}
+.shead #picbox img,.shead #picbox .pic{width:92px;height:122px;max-height:none;object-fit:cover;border-radius:12px;margin:0}
+.shead #picbox:empty{display:none}
+.sh-t{flex:1;min-width:0}
+.sh-t .eyebrow{margin:0}
+.sh-t h2{font-size:26px;line-height:1.1;overflow-wrap:anywhere}
+.sh-t .chips{margin:6px 0 0}
+#dprod{display:inline-block;margin-top:6px;background:none;border:0;padding:0;color:var(--gold);font-size:14px;font-weight:600;cursor:pointer}
+.sacts{display:flex;gap:8px;margin:0 0 12px}
+.sacts .btn{flex:1;padding:10px 8px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px}
+.sacts .btn.icon{flex:none;width:44px;padding:0}
+.photopanel{background:var(--sf2);border:1px solid var(--line);border-radius:16px;padding:12px;margin:0 0 12px}
+.pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.pgrid .btn,.pgrid label.btn{margin:0;text-align:center;font-size:13.5px;padding:10px 6px}
+h4.gh{margin:18px 4px 6px;font:700 12px/1.3 "Plus Jakarta Sans",system-ui,sans-serif;letter-spacing:1px;text-transform:uppercase;color:#8A817A}
+.grp{background:var(--sf2);border:1px solid var(--line);border-radius:16px;overflow:hidden}
+.fr{display:flex;align-items:center;gap:10px;padding:0 14px;min-height:46px;border-bottom:1px solid var(--line)}
+.fr:last-child,.fb:last-child{border-bottom:0}
+.fr>label{flex:0 0 38%;font-size:14.5px;color:var(--ink);margin:0}
+.fr>input,.fr>select,.fr>span>input,.fr>span>select{flex:1;min-width:0;background:none;border:0;margin:0;padding:12px 0;text-align:right;color:var(--ink);font-size:15px;border-radius:0}
+.fr>select{text-align-last:right;-webkit-appearance:none;appearance:none;color:var(--gold)}
+.fr>input:focus,.fr>select:focus,.fb textarea:focus,.fb input:focus{outline:0;background:none}
+.fr>span{flex:1;min-width:0;display:flex;justify-content:flex-end;align-items:center;gap:8px}
+.fb{padding:10px 14px;border-bottom:1px solid var(--line)}
+.fb>label{display:block;font-size:13px;margin:0 0 2px}
+.fb textarea,.fb>input{background:none;border:0;padding:4px 0;margin:0;color:var(--ink);font-size:15px;border-radius:0}
+.fb .link{padding:4px 0;background:none;border:0;font-size:13.5px}
+.sbar{position:sticky;bottom:calc(-18px - env(safe-area-inset-bottom,0px));z-index:3;display:flex;gap:8px;margin:16px -18px calc(-18px - env(safe-area-inset-bottom,0px));padding:10px 14px calc(12px + env(safe-area-inset-bottom,0px));background:rgba(28,24,23,.97);border-top:1px solid var(--line)}
+.sbar .btn{flex:1;padding:13px 8px;font-weight:700;font-size:15px}
+.btn.danger{background:none;border-color:#4A2A2E;color:#F09A9C}
+
+/* impostazioni a sezioni */
+details.fold{background:var(--sf2);border:1px solid var(--line);border-radius:14px;margin:8px 0;padding:0 14px}
+details.fold>summary{list-style:none;cursor:pointer;padding:13px 0;font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+details.fold>summary::-webkit-details-marker{display:none}
+details.fold>summary::after{content:"›";color:var(--gold);font-size:20px;line-height:1;transition:transform .2s}
+details.fold[open]>summary::after{transform:rotate(90deg)}
+details.fold[open]{padding-bottom:12px}
+
+/* FAB solo su Cantina ed Elenco */
+body:not([data-tab=cantina]):not([data-tab=lista]) .fab{display:none}
+
+/* scaffali: etichette più leggibili, posti vuoti più leggeri */
+.lbl{font-size:10px;line-height:1.2}
+.lbl b{font-weight:700;color:#E6DCD0}
+.dot:not(.t-rosso):not(.t-bianco):not(.t-bollicine):not(.t-rosato):not(.t-altro){border:1px dashed #3A322E;background:transparent;box-shadow:none}
+.dot.t-rosso,.dot.t-bianco,.dot.t-bollicine,.dot.t-rosato,.dot.t-altro{position:relative}
+.dot.t-rosso:not(.has)::after,.dot.t-bianco:not(.has)::after,.dot.t-bollicine:not(.has)::after,.dot.t-rosato:not(.has)::after,.dot.t-altro:not(.has)::after{content:"";position:absolute;inset:8% 40% 52% 18%;border-radius:50%;background:rgba(255,255,255,.18);filter:blur(2px);pointer-events:none}
+.maplink small{display:block;font-weight:500;font-size:12.5px;color:var(--mute);margin-top:1px}
+.maplink>span:last-child{color:var(--gold);font-size:22px}
