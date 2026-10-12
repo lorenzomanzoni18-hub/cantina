@@ -250,5 +250,5 @@ function openTracer(profile, img, onDone) {
   };
   d.onclose = null;
   draw();
-  d.showModal();
+  if (!d.open) d.showModal();
 }

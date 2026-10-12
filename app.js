@@ -95,13 +95,16 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '36';
+const APP_VERSION = '37';
+window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
   const m = String(msg || '').toLowerCase();
+  if (m.includes('credit balance')) return 'Il credito di Claude è finito o non è ancora stato caricato. Vai su console.anthropic.com › Billing e ricarica (bastano 5 $): poi riprova.';
+  if (m.includes('overloaded')) return 'Claude è molto occupato in questo momento: riprova tra qualche minuto.';
   if (m.includes('si azzera')) return 'Il limite gratuito di oggi è finito su tutti i modelli Gemini che l\'app prova. Le bottiglie già aggiornate restano salvate: riprova dopo l\'orario indicato.';
   if (m.includes('api key') || m.includes('api_key') || m.includes('invalid x-api-key') || m.includes('authentication')) return 'La chiave non risulta valida. Controlla di averla copiata tutta, senza spazi, e che sia quella del servizio scelto.';
   if (m.includes('quota') || m.includes('rate') || m.includes('429') || m.includes('resource_exhausted')) return 'Hai raggiunto il limite gratuito del servizio. Riprova tra un minuto o piu tardi.';
@@ -121,7 +124,7 @@ function notice(title, body, actions) {
     a.appendChild(b);
   });
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 function aiReady() { const c = getCfg(); return !!(c.provider === 'anthropic' ? c.anthropicKey : c.geminiKey); }
 
@@ -628,7 +631,15 @@ function loadImg(blob) {
   return new Promise((res, rej) => {
     const u = URL.createObjectURL(blob), im = new Image();
     im.onload = () => { URL.revokeObjectURL(u); res(im); };
-    im.onerror = () => { URL.revokeObjectURL(u); rej(new Error('Immagine non leggibile')); };
+    im.onerror = async () => {
+      URL.revokeObjectURL(u);
+      // alcune foto della galleria (HEIC, molto grandi) non si aprono come immagine: provo un'altra strada
+      try {
+        const bm = await createImageBitmap(blob);
+        const c = document.createElement('canvas'); c.width = bm.width; c.height = bm.height; c.getContext('2d').drawImage(bm, 0, 0);
+        const im2 = new Image(); im2.onload = () => res(im2); im2.onerror = () => rej(new Error('Immagine non leggibile: prova a fare uno screenshot della foto e usa quello.')); im2.src = c.toDataURL('image/jpeg', 0.9);
+      } catch (_) { rej(new Error('Immagine non leggibile: prova a fare uno screenshot della foto e usa quello.')); }
+    };
     im.src = u;
   });
 }
@@ -698,7 +709,7 @@ async function labelEditor(blob, done) {
     close();
   };
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
   requestAnimationFrame(draw);
 }
 async function makeLabelThumb(blob, box) {
@@ -789,6 +800,7 @@ async function openBottle(id, pre) {
   <div class="shead"><div id="picbox"></div><div class="sh-t"><p class="eyebrow">${b.wish ? (id ? 'Vino nei desideri' : 'Nuovo vino nei desideri') : id ? 'Scheda bottiglia' : 'Nuova bottiglia'}</p><h2 id="dtitle" class="dtitle"></h2><div class="chips" id="dchips"></div><div id="dprod"></div></div></div>
   ${grp.length > 1 ? `<p class="note">Bottiglie uguali: <b>${grp.length}</b> (${[gIn ? gIn + ' in cantina' : '', gPe ? gPe + ' in arrivo' : '', gDr ? gDr + ' uscite' : ''].filter(Boolean).join(', ')}). Le informazioni valgono per tutte; posizione e stato solo per questa.</p>` : ''}${b.drunk ? `<p class="note"><b>${esc(exitLabel(b))} il ${esc(new Date(b.drunk.date).toLocaleDateString('it-IT'))}</b>${b.drunk.rating ? ' · voto ' + '★'.repeat(b.drunk.rating) + '☆'.repeat(5 - b.drunk.rating) : ''}${b.drunk.notes ? '<br>' + esc(b.drunk.notes) : ''}</p>` : ''}
   <div class="sacts"><button class="btn" id="chg" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Foto</button><button class="btn" id="enr" type="button"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.8 4.6L18.5 9l-4.7 1.4L12 15l-1.8-4.6L5.5 9l4.7-1.4z"/><path d="M19 15l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>Cerca dati con l'IA</button>${id && b.shelf && inCellar(b) ? `<button class="btn icon" data-a="locate" data-id="${esc(b.id)}" type="button" aria-label="Dov'è sullo scaffale"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg></button>` : ''}</div>
+  <p class="info" id="scs"></p>
   <div id="photoctl" class="photopanel">
   <p class="info">Fotografa l'etichetta: compilo io i campi, tu controlli.</p>
   <div class="pgrid"><label class="btn">Scatta foto<input type="file" accept="image/*" capture="environment" hidden class="ph"></label><label class="btn">Dalla galleria<input type="file" accept="image/*" hidden class="ph"></label><button class="btn" id="pasteimg" type="button">Incolla</button><button class="btn" id="bcode" type="button">Codice a barre</button><a class="btn" id="srch" target="_blank" rel="noopener" href="#">Cerca online</a><label class="btn">Retro-etichetta<input type="file" accept="image/*" hidden class="rph"></label></div>
@@ -796,7 +808,6 @@ async function openBottle(id, pre) {
   <div id="pbox" class="pbox" contenteditable="true" inputmode="none">Per incollare un'immagine trovata online: tieni premuto qui e scegli Incolla.</div>
   </div>
   <div id="retbox"></div>
-  <p class="info" id="scs"></p>
 
   <h4 class="gh">Il vino</h4><div class="grp">
   <div class="fr"><label for="f_producer">Produttore</label><input id="f_producer" placeholder="Obbligatorio" value="${esc(b.producer)}"></div>
@@ -1071,7 +1082,7 @@ async function openBottle(id, pre) {
       scs($('#scs').textContent + poor);
     } catch (err) {
       aiWaitNote = null;
-      await setPhoto(file, null);
+      try { await setPhoto(file, null); } catch (e2) { console.error(e2); }
       scs('Lettura non riuscita: ' + err.message);
       notice('Lettura non riuscita', esc(errorHint(err.message)) + '<br><br><small>Dettaglio: ' + esc(err.message) + '</small>', [{ t: 'Impostazioni', fn: openSettings }, { t: 'Chiudi', pri: true }]);
     }
@@ -1220,7 +1231,7 @@ async function openBottle(id, pre) {
     };
   }
   d.onclose = () => { if (picUrl) { URL.revokeObjectURL(picUrl); picUrl = null; } };
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 function openPlace(sh, r, c) {
@@ -1234,7 +1245,7 @@ function openPlace(sh, r, c) {
   $('#pn').onclick = () => { d.close(); openBottle(null, { shelf: sh, r, c }); };
   $('#pc').onclick = () => d.close();
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 function openShelf(id) {
@@ -1261,7 +1272,7 @@ function openShelf(id) {
     };
   }
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 /* ===== Impostazioni e backup ===== */
@@ -1414,7 +1425,7 @@ function openSettings() {
   bindBackupSection();
   foldSections(d);
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 async function optimizePhotos() {

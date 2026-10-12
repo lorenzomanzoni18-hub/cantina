@@ -111,7 +111,7 @@ function scanBarcode() {
     $('#sc_x').onclick = () => finish(null);
     $('#sc_ok').onclick = () => { const v = $('#sc_t').value.trim(); if (v) finish(v); };
     d.onclose = () => finish(null);
-    d.showModal();
+    if (!d.open) d.showModal();
     loadZxing().then(() => {
       if (done) return;
       reader = new ZXing.BrowserMultiFormatReader();

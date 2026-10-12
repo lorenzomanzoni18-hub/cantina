@@ -367,7 +367,7 @@ function glassEdit(gl, isNew) {
     if (!ng.research && aiReady() && (ng.brand || ng.model)) researchGlass(ng, (t) => { const m = $('#g_msg'); if (m) m.textContent = t; }).then(() => { const m = $('#g_msg'); if (m) m.textContent = 'Ricerca completata per ' + gName(ng) + '.'; }).catch(() => {});
   };
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
   if (tmpImg) { const ap = g._aiProf; delete g._aiProf; traceFrom(tmpImg, ap); }
 }
 // Ritaglio verticale attorno al calice, su fondo scuro, come una foto di catalogo.

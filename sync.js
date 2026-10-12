@@ -145,7 +145,7 @@ function openWizard() {
     $('#wz_ok').disabled = false;
   };
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 /* ---- Valori di mercato aggiornati ogni mese ---- */

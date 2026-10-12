@@ -250,6 +250,6 @@ function bindBackupSection() {
       } catch (e) { m('Ripristino non riuscito: ' + e.message); }
     });
     d.onclose = null;
-    d.showModal();
+    if (!d.open) d.showModal();
   };
 }

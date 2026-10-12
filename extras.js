@@ -113,7 +113,7 @@ function tastingDialog(title, drinking, cb) {
     cb(t);
   };
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 
 /* ===== Cosa stappo stasera ===== */

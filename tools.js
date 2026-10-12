@@ -194,7 +194,7 @@ function openCarta() {
     } catch (e) { $('#ca_m').textContent = 'Non riuscito: ' + e.message; }
   };
   d.onclose = null;
-  d.showModal();
+  if (!d.open) d.showModal();
 }
 async function buildCarta(sel, title, sub, prices) {
   const SERIF = '"Cormorant Garamond", Georgia, serif', SANS = '"Plus Jakarta Sans", system-ui, sans-serif';
