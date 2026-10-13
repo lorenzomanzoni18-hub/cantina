@@ -192,7 +192,7 @@ h3{font-family:"Plus Jakarta Sans",system-ui,sans-serif}
 .statlink{margin:4px 2px 0;font-size:12px;color:var(--mute);text-align:right}
 
 /* barra delle schede in basso */
-nav{position:fixed;left:0;right:0;bottom:0;z-index:9;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;max-width:720px;margin:0 auto;padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(24,21,20,.96);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:9;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;max-width:720px;margin:0 auto;padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(24,21,20,.96);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
 nav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;font-size:11px;font-weight:600;color:#8A817A;border-radius:10px;min-width:0}
 nav button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-pressed=true]{background:none;color:var(--gold);border:0}
@@ -327,7 +327,7 @@ details.aiinfo[open] summary{margin-bottom:10px}
 .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin:6px 0 10px}
 .scanbox video{width:100%;height:100%;object-fit:cover;display:block}
 .scanbox i{position:absolute;left:12%;right:12%;top:38%;bottom:38%;border:2px solid var(--gold);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
-nav{grid-template-columns:repeat(6,minmax(0,1fr))}
+nav{grid-template-columns:repeat(7,minmax(0,1fr))}
 nav button{font-size:10.5px}
 /* --- pagina Calici --- */
 .ptitle{font-size:30px;margin:10px 0 4px}
@@ -551,3 +551,12 @@ input,select,textarea,.fr>input,.fr>select,.fr>span>input,.fr>span>select,.fb te
 .v3ck{flex:none;width:28px;height:28px;border-radius:14px;border:1.5px solid var(--line);background:none;color:transparent;font-size:14px;cursor:pointer;padding:0}
 .v3mv.ok .v3ck{background:var(--gold);border-color:var(--gold);color:#121010}
 .v3mv.ok b{text-decoration:line-through;color:var(--mute)}
+nav button{font-size:10px}
+.v3chips{margin:2px 0 8px}
+.v3find{margin:0 0 10px}
+.v3find input{margin:0;border-radius:12px;background:var(--sf);border:1px solid var(--line)}
+.v3res{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.v3res:empty{display:none}
+.v3tools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+.v3tool{width:40px;height:40px;border-radius:20px;border:1px solid var(--line);background:rgba(28,24,23,.88);color:var(--ink);font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.v3stage{height:min(64vh,580px);background:radial-gradient(ellipse at 50% 30%,#3a3230 0%,#1a1513 75%)}

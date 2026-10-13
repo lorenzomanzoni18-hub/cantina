@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '45';
+const APP_VERSION = '46';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -474,7 +474,7 @@ function render() {
     luna: ['Luna', 'Calendario biodinamico'],
     stats: ['Statistiche', '‹ Cantina', 'cantina'],
     mappa: ['Mappa', 'Dove nascono i tuoi vini'],
-    vista3d: ['Cantina in 3D', '‹ Cantina', 'cantina'],
+    vista3d: ['Cantina in 3D', 'Tocca una bottiglia per sapere qual è'],
   }[tab] || ['Cantina', ''];
   $('#ptitle').textContent = H[0];
   const eb = $('#eyebrow');
@@ -482,7 +482,7 @@ function render() {
   if (H[2]) { eb.dataset.a = 'tab'; eb.dataset.t = H[2]; eb.classList.add('back'); eb.tabIndex = 0; } else { delete eb.dataset.a; eb.classList.remove('back'); eb.tabIndex = -1; }
   document.body.dataset.tab = tab;
   $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
-  const navT = tab === 'stats' || tab === 'vista3d' ? 'cantina' : tab;
+  const navT = tab === 'stats' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
   const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage, vista3d: () => (typeof page3d === 'function' ? page3d() : '') };
   $('#app').innerHTML = (pages[tab] || cantina)();
@@ -579,7 +579,7 @@ function cantina() {
   placeQ = placeQ.filter((id) => S.bottles[id] && inCellar(S.bottles[id]) && !S.bottles[id].shelf);
   const pq = placeQ.length ? `<div class="note place"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
   const mvb = moving && S.bottles[moving] ? `<div class="note"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
-  const v3btn = S.shelves.length && typeof page3d === 'function' ? `<button class="maplink" data-a="tab" data-t="vista3d"><span><b>Cantina in 3D</b><small>Gli scaffali come sono davvero e i consigli per riordinarli</small></span><span>›</span></button>` : '';
+  const v3btn = '';
   return pq + mvb + (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner() + moonChip() + v3btn + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
 
