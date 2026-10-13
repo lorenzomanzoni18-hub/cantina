@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '43';
+const APP_VERSION = '44';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -474,6 +474,7 @@ function render() {
     luna: ['Luna', 'Calendario biodinamico'],
     stats: ['Statistiche', '‹ Cantina', 'cantina'],
     mappa: ['Mappa', 'Dove nascono i tuoi vini'],
+    vista3d: ['Cantina in 3D', '‹ Cantina', 'cantina'],
   }[tab] || ['Cantina', ''];
   $('#ptitle').textContent = H[0];
   const eb = $('#eyebrow');
@@ -481,11 +482,12 @@ function render() {
   if (H[2]) { eb.dataset.a = 'tab'; eb.dataset.t = H[2]; eb.classList.add('back'); eb.tabIndex = 0; } else { delete eb.dataset.a; eb.classList.remove('back'); eb.tabIndex = -1; }
   document.body.dataset.tab = tab;
   $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
-  const navT = tab === 'stats' ? 'cantina' : tab;
+  const navT = tab === 'stats' || tab === 'vista3d' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
-  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
+  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage, vista3d: () => (typeof page3d === 'function' ? page3d() : '') };
   $('#app').innerHTML = (pages[tab] || cantina)();
   if (tab === 'mappa') setTimeout(initMap, 0);
+  if (tab === 'vista3d' && typeof init3d === 'function') setTimeout(init3d, 0);
 }
 
 let moving = null;
@@ -570,14 +572,15 @@ function cantina() {
       cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}${b && status(b) ? `<span class="sdot ${status(b)}"></span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
     }
     const tot = s.rows * s.cols;
-    return `<section class="shelf"><header><h2>${esc(s.name)} <small class="free">${used} di ${tot}${tot - used ? ' · ' + (tot - used === 1 ? '1 posto libero' : (tot - used) + ' liberi') : ' · pieno'}</small></h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
+    return `<section class="shelf"><header><h2>${esc(s.name)} <small class="free">${typeof shelfLoc === 'function' && shelfLoc(s) === 'casa' ? 'In casa' + (zonesText(s) ? ' · ' + esc(zonesText(s)) : '') + ' · ' : ''}${used} di ${tot}${tot - used ? ' · ' + (tot - used === 1 ? '1 posto libero' : (tot - used) + ' liberi') : ' · pieno'}</small></h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
   }).join('');
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && inCellar(b)).length;
   placeQ = placeQ.filter((id) => S.bottles[id] && inCellar(S.bottles[id]) && !S.bottles[id].shelf);
   const pq = placeQ.length ? `<div class="note place"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
   const mvb = moving && S.bottles[moving] ? `<div class="note"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
-  return pq + mvb + (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner() + moonChip() + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
+  const v3btn = S.shelves.length && typeof page3d === 'function' ? `<button class="maplink" data-a="tab" data-t="vista3d"><span><b>Cantina in 3D</b><small>Gli scaffali come sono davvero e i consigli per riordinarli</small></span><span>›</span></button>` : '';
+  return pq + mvb + (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner() + moonChip() + v3btn + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
 
 const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1302,10 +1305,17 @@ function openShelf(id) {
   const d = $('#dlg');
   d.innerHTML = `<h2>${id ? 'Modifica scaffale' : 'Nuovo scaffale'}</h2><label>Nome</label><input id="s_name" value="${esc(s.name)}">
   <div class="two"><div><label>Righe</label><input id="s_rows" type="number" min="1" max="30" value="${s.rows}"></div><div><label>Posti per riga</label><input id="s_cols" type="number" min="1" max="30" value="${s.cols}"></div></div>
+  <label>Dove si trova</label><select id="s_loc"><option value="cantina" ${(typeof shelfLoc === 'function' ? shelfLoc(s) : 'cantina') === 'cantina' ? 'selected' : ''}>In cantina</option><option value="casa" ${(typeof shelfLoc === 'function' ? shelfLoc(s) : '') === 'casa' ? 'selected' : ''}>In casa (frigorifero, cantinetta)</option></select>
+  <details class="more"${typeof shelfZones === 'function' && shelfZones(s).length ? ' open' : ''}><summary>Zone di temperatura (frigorifero bizona)</summary>
+  <p class="info">Lascia vuoto se la temperatura è una sola.</p>
+  <div class="two"><div><label>Righe in alto</label><input id="s_zr" type="number" min="1" max="30" value="${typeof shelfZones === 'function' && shelfZones(s).length ? shelfZones(s)[0].to + 1 : ''}"></div><div><label>°C in alto</label><input id="s_zt1" type="number" min="0" max="25" value="${typeof shelfZones === 'function' && shelfZones(s).length ? shelfZones(s)[0].t : ''}"></div></div>
+  <div class="two"><div><label>°C nelle righe sotto</label><input id="s_zt2" type="number" min="0" max="25" value="${typeof shelfZones === 'function' && shelfZones(s).length > 1 ? shelfZones(s)[1].t : ''}"></div></div></details>
   <div class="acts"><button class="btn pri" id="ssv">Salva</button><button class="btn" id="scl">Annulla</button>${id ? '<button class="btn" id="sdel">Elimina scaffale</button>' : ''}</div>`;
   $('#scl').onclick = () => d.close();
   $('#ssv').onclick = () => {
-    const n = { id: s.id, name: $('#s_name').value.trim() || s.name, rows: Math.min(30, Math.max(1, +$('#s_rows').value || 1)), cols: Math.min(30, Math.max(1, +$('#s_cols').value || 1)) };
+    const n = { ...s, name: $('#s_name').value.trim() || s.name, rows: Math.min(30, Math.max(1, +$('#s_rows').value || 1)), cols: Math.min(30, Math.max(1, +$('#s_cols').value || 1)), loc: $('#s_loc').value };
+    const zr = +$('#s_zr').value, t1 = $('#s_zt1').value, t2 = $('#s_zt2').value;
+    n.zones = zr && t1 !== '' ? [{ from: 0, to: Math.min(zr, n.rows) - 1, t: +t1 }].concat(t2 !== '' && zr < n.rows ? [{ from: zr, to: n.rows - 1, t: +t2 }] : []) : [];
     S.shelves = id ? S.shelves.map((x) => (x.id === id ? n : x)) : [...S.shelves, n];
     // Le bottiglie fuori dalla nuova misura non si cancellano: tornano "da posizionare".
     Object.values(S.bottles).forEach((b) => { if (b.shelf === n.id && (b.r >= n.rows || b.c >= n.cols)) persistBottle({ ...b, shelf: null, r: 0, c: 0 }); });
