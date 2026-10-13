@@ -560,3 +560,16 @@ nav button{font-size:10px}
 .v3tools{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
 .v3tool{width:40px;height:40px;border-radius:20px;border:1px solid var(--line);background:rgba(28,24,23,.88);color:var(--ink);font-size:20px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
 .v3stage{height:min(64vh,580px);background:radial-gradient(ellipse at 50% 30%,#3a3230 0%,#1a1513 75%)}
+/* 3D: interruttore tra cantina e cantinetta */
+.v3switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--sf);border:1px solid var(--line);border-radius:16px;padding:4px;margin:4px 0 10px}
+.v3switch button{border:0;background:none;border-radius:12px;padding:9px 10px;text-align:left;color:var(--mute);cursor:pointer;display:flex;flex-direction:column;gap:1px;font:inherit;transition:background .2s,color .2s}
+.v3switch button b{font-family:"Cormorant Garamond",Georgia,serif;font-size:21px;line-height:1.1;color:inherit}
+.v3switch button small{font-size:11.5px;color:var(--mute)}
+.v3switch button[aria-selected=true]{background:var(--sf2);color:var(--gold);box-shadow:inset 0 0 0 1px #4A3E2C}
+.v3stage{border-radius:20px;box-shadow:0 10px 30px rgba(0,0,0,.45)}
+.v3stage::after{content:"";position:absolute;inset:0;pointer-events:none;border-radius:20px;background:radial-gradient(ellipse at 50% 45%,transparent 55%,rgba(0,0,0,.45) 100%)}
+.v3hint{z-index:1;background:rgba(18,16,16,.6);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.v3tools{z-index:1}
+.v3tool{background:rgba(28,24,23,.7);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.v3card{border-radius:18px}
+.v3card .v3row img{border:2px solid #4A3E2C}

@@ -1,5 +1,4 @@
-/* Cantina in 3D: gli scaffali come sono davvero (cantina e casa), con i consigli per riordinarli.
-   I consigli spostano le bottiglie solo dentro la cantina: il frigorifero di casa non si tocca. */
+/* Cantina in 3D: gli scaffali come sono davvero. Due zone separate: la cantina e la cantinetta di casa. */
 
 /* ---- come sono disposti gli scaffali ---- */
 const isFridgeName = (n) => /frigo|cantinett|climatizz/i.test(n || '');
@@ -36,6 +35,7 @@ function shelfStyle(s) {
 
 /* ---- pagina ---- */
 let v3 = null; // scena attiva
+let v3zone = 'cantina', v3pending = null; // cantina o frigorifero di casa; bottiglia da mostrare appena pronta
 const shName = (id) => { const s = S.shelves.find((x) => x.id === id); return s ? s.name : '—'; };
 const posLabel = (b) => shName(b.shelf) + ' · riga ' + (b.r + 1) + ', posto ' + (b.c + 1);
 const in3d = () => Object.values(S.bottles).filter((b) => inCellar(b) && b.shelf && S.shelves.some((s) => s.id === b.shelf));
@@ -43,13 +43,24 @@ const in3d = () => Object.values(S.bottles).filter((b) => inCellar(b) && b.shelf
 function page3d() {
   const { cantina, casa } = orderedShelves();
   if (!S.shelves.length) return '<p class="empty">Crea prima uno scaffale dalla pagina Cantina.</p>';
-  return `<div class="fchips v3chips">${cantina.length ? '<button class="fchip on" type="button" data-v3f="cantina">Cantina</button>' : ''}<button class="fchip${cantina.length ? '' : ' on'}" type="button" data-v3f="all">Tutto</button>${cantina.map((s) => `<button class="fchip" type="button" data-v3f="${esc(s.id)}">${esc(s.name)}</button>`).join('')}${casa.map((s) => `<button class="fchip" type="button" data-v3f="${esc(s.id)}">${esc(s.name)}</button>`).join('')}</div>
+  if (v3zone === 'casa' && !casa.length) v3zone = 'cantina';
+  if (v3zone === 'cantina' && !cantina.length) v3zone = 'casa';
+  const list = v3zone === 'casa' ? casa : cantina;
+  const nIn = (l) => in3d().filter((b) => l.some((x) => x.id === b.shelf)).length;
+  const sw = cantina.length && casa.length ? `<div class="v3switch" role="tablist" aria-label="Zona">
+    <button type="button" role="tab" data-v3zone="cantina" aria-selected="${v3zone === 'cantina'}"><b>Cantina</b><small>${nIn(cantina)} bottiglie · ${cantina.length} scaffali</small></button>
+    <button type="button" role="tab" data-v3zone="casa" aria-selected="${v3zone === 'casa'}"><b>${esc(casa.length === 1 ? casa[0].name : 'In casa')}</b><small>${nIn(casa)} bottiglie${casa.length === 1 && zonesText(casa[0]) ? ' · ' + shelfZones(casa[0]).map((z) => z.t + '°').join(' / ') : ''}</small></button></div>` : '';
+  const chips = list.length > 1 ? `<div class="fchips v3chips"><button class="fchip on" type="button" data-v3f="all">Tutti</button>${list.map((s) => `<button class="fchip" type="button" data-v3f="${esc(s.id)}">${esc(s.name)}</button>`).join('')}</div>` : '';
+  const info = v3zone === 'casa'
+    ? list.map((s) => `${esc(s.name)}: cantinetta da incasso in cucina${zonesText(s) ? ', ' + esc(zonesText(s)) : ''}.`).join(' ')
+    : `In cantina, da sinistra: ${list.map((s) => esc(s.name)).join(' · ')}.`;
+  return `${sw}${chips}
   <div class="v3find"><input id="v3q" type="search" placeholder="Trova una bottiglia: produttore, vino, annata" autocomplete="off"><div id="v3res" class="v3res"></div></div>
-  <div class="v3stage" id="v3stage"><p class="v3load" id="v3load">Preparo la scena…</p>
+  <div class="v3stage v3-${v3zone}" id="v3stage"><p class="v3load" id="v3load">Preparo la scena…</p>
     <div class="v3tools"><button type="button" class="v3tool" data-v3z="in" aria-label="Avvicina">+</button><button type="button" class="v3tool" data-v3z="out" aria-label="Allontana">−</button><button type="button" class="v3tool" data-v3z="reset" aria-label="Vista di fronte">⟲</button></div>
-    <div class="v3hint">Un dito: gira · due dita: sposta e ingrandisci · tocca una bottiglia</div></div>
+    <div class="v3hint">Un dito gira · due dita spostano e ingrandiscono</div></div>
   <div class="v3card" id="v3card"><b>Tocca una bottiglia</b><small>Ti dico qual è e dove si trova. Puoi anche cercarla qui sopra.</small></div>
-  <p class="info">In cantina, da sinistra: ${cantina.map((s) => esc(s.name)).join(' · ') || '—'}.${casa.length ? ' In casa: ' + casa.map((s) => esc(s.name) + (zonesText(s) ? ' (' + esc(zonesText(s)) + ')' : '')).join(', ') + '.' : ''} <button class="link" type="button" data-a="v3layout">Cambia disposizione</button></p>`;
+  <p class="info">${info} <button class="link" type="button" data-a="v3layout">Cambia disposizione</button></p>`;
 }
 
 function loadThree() {
@@ -68,24 +79,31 @@ async function init3d() {
   if (!document.body.contains(stage)) return;
   const ld = document.getElementById('v3load'); if (ld) ld.remove();
   const { cantina, casa } = orderedShelves();
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+  const home3 = v3zone === 'casa';
+  const list = home3 ? casa : cantina;
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
+  renderer.outputEncoding = THREE.sRGBEncoding; renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = home3 ? 0.95 : 1.0;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.prepend(renderer.domElement);
-  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(38, 1, 0.1, 500);
-  scene.add(new THREE.HemisphereLight(0xfff2e0, 0x201410, 0.8));
-  const key = new THREE.DirectionalLight(0xffe7c4, 0.9); key.position.set(-10, 25, 30); scene.add(key);
-  const rim = new THREE.DirectionalLight(0xd4af6a, 0.35); rim.position.set(20, 8, -10); scene.add(rim);
-  // cantina da sinistra a destra, la cantinetta di casa più in là
-  const GAP = 0.6, HOME = 8, RX = {};
+  const scene = new THREE.Scene(), camera = new THREE.PerspectiveCamera(36, 1, 0.1, 500);
+  const BG = home3 ? 0x1c1a19 : 0x15100d;
+  scene.background = new THREE.Color(BG); scene.fog = new THREE.Fog(BG, 38, 95);
+  const GAP = home3 ? 2.5 : 0.6, RX = {};
   let x = 0;
-  cantina.forEach((s) => { RX[s.id] = x; x += s.cols + GAP; });
-  const cantW = Math.max(0, x - GAP);
-  let hx = cantW + (cantina.length ? HOME : 0);
-  casa.forEach((s) => { RX[s.id] = hx; hx += s.cols + GAP + 1.5; });
-  const totalW = Math.max(1, hx - GAP), shift = -cantW / 2;
+  list.forEach((s) => { RX[s.id] = x; x += s.cols + GAP; });
+  const totalW = Math.max(1, x - GAP), cantW = totalW, shift = -totalW / 2;
+  const maxRows = Math.max(1, ...list.map((s) => s.rows));
+  // luci: in cantina una lampada calda dall'alto con ombre morbide; in cucina luce diffusa e il LED della cantinetta
+  scene.add(new THREE.HemisphereLight(home3 ? 0xf3efe8 : 0xffe4c4, home3 ? 0x3a3532 : 0x2a1a10, home3 ? 0.6 : 0.42));
+  const spot = new THREE.SpotLight(home3 ? 0xfff6ea : 0xffcf94, home3 ? 0.8 : 1.25, 0, 0.62, 0.8, 1);
+  spot.position.set(-2, maxRows + 14, 16); spot.target.position.set(0, maxRows / 2, 0); scene.add(spot, spot.target);
+  spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.bias = -0.0005; spot.shadow.radius = 4;
+  const fill = new THREE.DirectionalLight(home3 ? 0xdfe8ff : 0xb07a50, home3 ? 0.35 : 0.25); fill.position.set(14, 6, 10); scene.add(fill);
   const SHB = Object.fromEntries(S.shelves.map((s) => [s.id, s]));
   const slotPos = (sid, r, c) => { const s = SHB[sid]; return new THREE.Vector3(shift + RX[sid] + c + 0.5, (s.rows - 1 - r) + 0.75, 0); };
-  const mat = (o) => new THREE.MeshStandardMaterial(o);
+  const lin = (c) => new THREE.Color(c).convertSRGBToLinear();
+  const mat = (o) => new THREE.MeshStandardMaterial(o.color != null ? { ...o, color: lin(o.color) } : o);
   const wood = mat({ color: 0x5a3e28, roughness: 0.85 });
   const back = mat({ color: 0x0d0b0a, roughness: 1 });
   const sprite = (t, w, size, col) => {
@@ -93,13 +111,13 @@ async function init3d() {
     g.font = `700 ${size || 58}px "Cormorant Garamond", Georgia, serif`; g.fillStyle = col || '#F2EBE3'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t, 256, 50);
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true })); sp.scale.set(w || 5.2, (w || 5.2) * 96 / 512, 1); return sp;
   };
-  const box = (w, h, d, m, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(px, py, pz); scene.add(o); return o; };
-  S.shelves.forEach((s) => {
+  const box = (w, h, d, m, px, py, pz) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(px, py, pz); o.castShadow = o.receiveShadow = true; scene.add(o); return o; };
+  list.forEach((s) => {
     if (RX[s.id] == null) return;
     const w = s.cols, h = s.rows, x0 = shift + RX[s.id], cx = x0 + w / 2, cy = h / 2 + 0.25;
     if (isPando(s)) {
       // cantinetta da incasso: mobile della cucina, cornice nera, vetro fumé, maniglia, luce LED
-      const cab = mat({ color: 0xcfc6b8, roughness: 0.7 }), blk = mat({ color: 0x111111, roughness: 0.4, metalness: 0.5 }), inner = mat({ color: 0x1a2028, roughness: 0.9 });
+      const cab = mat({ color: 0xe9e3d8, roughness: 0.45 }), blk = mat({ color: 0x141414, roughness: 0.3, metalness: 0.6 }), inner = mat({ color: 0x20262e, roughness: 0.85 });
       const W = w + 0.6, H = h + 0.8, F = 1.3; // vano interno
       // mobile della cucina intorno: quattro pannelli, non un blocco pieno
       box(F, H + 2 * F, 2.2, cab, cx - W / 2 - F / 2 - 0.25, cy, -0.9); box(F, H + 2 * F, 2.2, cab, cx + W / 2 + F / 2 + 0.25, cy, -0.9);
@@ -110,25 +128,29 @@ async function init3d() {
       // vano: fondo, fianchi, cielo e base scuri
       box(W, H, 0.05, inner, cx, cy, -1.45); box(0.05, H, 1.9, inner, cx - W / 2, cy, -0.5); box(0.05, H, 1.9, inner, cx + W / 2, cy, -0.5);
       box(W, 0.05, 1.9, inner, cx, cy + H / 2, -0.5); box(W, 0.05, 1.9, inner, cx, cy - H / 2, -0.5);
-      const glass = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.6, h + 0.8), new THREE.MeshStandardMaterial({ color: 0x223040, transparent: true, opacity: 0.18, roughness: 0.05, metalness: 0.6 }));
+      // piano di lavoro sopra il mobile e display delle due zone
+      box(W + 2 * F + 1.6, 0.35, 2.6, mat({ color: 0x3b3936, roughness: 0.35, metalness: 0.1 }), cx, cy + H / 2 + F + 0.42, -0.7);
+      { const c = document.createElement('canvas'); c.width = 512; c.height = 64; const g = c.getContext('2d'); g.fillStyle = '#0b0b0b'; g.fillRect(0, 0, 512, 64); g.font = '600 38px "Plus Jakarta Sans", system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const zz = shelfZones(s); g.fillStyle = '#9fd0ff'; g.fillText(zz.length ? zz.map((z) => z.t + '°').join('    ') : '', 256, 34);
+        const disp = new THREE.Mesh(new THREE.PlaneGeometry(W * 0.55, 0.22), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(c) })); disp.position.set(cx, cy + H / 2 + 0.12, 0.41); scene.add(disp); }
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.6, h + 0.8), new THREE.MeshPhysicalMaterial({ color: lin(0x2a3644), transparent: true, opacity: 0.16, roughness: 0.02, metalness: 0.3, clearcoat: 1 }));
       glass.position.set(cx, cy, 0.62); scene.add(glass);
       box(0.12, h * 0.7, 0.18, mat({ color: 0x9a9a9a, metalness: 0.9, roughness: 0.25 }), cx + (w + 0.6) / 2 - 0.25, cy, 0.85);
-      box(w + 0.4, 0.06, 0.06, new THREE.MeshBasicMaterial({ color: 0x9fd0ff }), cx, h + 0.55, 0.2);
+      box(w + 0.4, 0.06, 0.06, new THREE.MeshBasicMaterial({ color: lin(0x9fd0ff) }), cx, h + 0.55, 0.2);
       const glow = new THREE.PointLight(0xcfe6ff, 1.1, 12); glow.position.set(cx, h - 0.5, 1.5); scene.add(glow);
       // ripiani: profilo in legno chiaro sul davanti, guide in metallo
       for (let r = 0; r < h; r++) { box(w + 0.3, 0.05, 1.3, mat({ color: 0x777777, metalness: 0.7, roughness: 0.4 }), cx, r + 0.27, -0.45); box(w + 0.3, 0.16, 0.08, mat({ color: 0xc89b6a, roughness: 0.6 }), cx, r + 0.3, 0.2); }
       shelfZones(s).forEach((z) => {
         const zh = z.to - z.from + 1, col = z.t <= 12 ? 0x1f3a52 : 0x4a3418;
-        box(w + 0.5, zh, 0.05, new THREE.MeshBasicMaterial({ color: col }), cx, (h - z.from - zh / 2) + 0.25, -1.4);
-        const lb = sprite(z.t + ' °C', 2.4, 64, z.t <= 12 ? '#2F6FA0' : '#A0661C'); lb.position.set(x0 - 2.0, (h - z.from - zh / 2) + 0.25, 1.4); scene.add(lb);
+        box(w + 0.5, zh, 0.05, new THREE.MeshBasicMaterial({ color: lin(col) }), cx, (h - z.from - zh / 2) + 0.25, -1.4);
+        const lb = sprite(z.t + ' °C', 2.2, 64, z.t <= 12 ? '#2F6FA0' : '#9A5F18'); lb.position.set(x0 - 2.3, (h - z.from - zh / 2) + 0.25, 1.4); scene.add(lb);
       });
-      const sp = sprite(s.name, 5.2, 58, '#2b2420'); sp.position.set(cx, h + 2.05, 1.2); scene.add(sp);
       return;
     }
     const st = shelfStyle(s);
     if (st === 'onda') {
       // pino: due fianchi pieni e, per ogni fila, due listelli sagomati (davanti e dietro) su cui poggiano le bottiglie
-      const pine = mat({ color: 0xd9ad72, roughness: 0.75 }), pineD = mat({ color: 0xc89a5f, roughness: 0.8 });
+      const pine = mat({ color: 0xd2a066, roughness: 0.62 }), pineD = mat({ color: 0xb98a52, roughness: 0.7 });
       [x0 - 0.12, x0 + w + 0.12].forEach((px) => box(0.22, h + 0.55, 1.5, pine, px, (h + 0.55) / 2 + 0.2, -0.5));
       for (let r = 0; r < h; r++) {
         const y = r + 0.38;
@@ -138,7 +160,7 @@ async function init3d() {
       box(w + 0.46, 0.08, 1.5, pine, cx, h + 0.45, -0.5);
     } else if (st === 'moduli') {
       // moduli affiancati da 3 posti, legno chiaro, montanti e tondini
-      const lite = mat({ color: 0xe6c99c, roughness: 0.75 });
+      const lite = mat({ color: 0xe0c08f, roughness: 0.6 });
       for (let m = 0; m < w; m += 3) {
         const mx0 = x0 + m - 0.05, mw = Math.min(3, w - m) + 0.1;
         [mx0, mx0 + mw].forEach((px) => [0.2, -1.05].forEach((pz) => box(0.1, h + 0.4, 0.1, lite, px, (h + 0.4) / 2 + 0.2, pz)));
@@ -153,17 +175,31 @@ async function init3d() {
       for (let r = 0; r <= h; r++) box(w + 0.12, 0.07, 1.3, wood, cx, r + 0.25, -0.45);
       for (let c = 0; c <= w; c++) box(0.07, h, 1.3, wood, x0 + c, cy, -0.45);
     }
-    const sp = sprite(s.name, 5.2, 58, '#2b2420'); sp.position.set(cx, h + 1.25, 0); scene.add(sp);
+    const sp = sprite(s.name, 4.4, 60, '#3a2a1f'); sp.position.set(cx, h + 1.15, 0.4); scene.add(sp);
   });
-  if (cantina.length) { const sp = sprite('Cantina', 4, 50, '#5a4636'); sp.position.set(0, -0.6, 1.5); scene.add(sp); }
-  if (casa.length) { const s0 = casa[0]; const sp = sprite('In casa', 4, 50, '#5a4636'); sp.position.set(shift + RX[s0.id] + s0.cols / 2, -0.9, 1.5); scene.add(sp); }
-  // pavimento in cotto e muro di cemento chiaro, come nella foto
-  const tile = document.createElement('canvas'); tile.width = tile.height = 256; { const g = tile.getContext('2d'); g.fillStyle = '#b8603e'; g.fillRect(0, 0, 256, 256); g.fillStyle = 'rgba(0,0,0,.06)'; for (let i = 0; i < 40; i++) g.fillRect(Math.random() * 256, Math.random() * 256, 30, 30); g.strokeStyle = '#8c4a30'; g.lineWidth = 6; g.strokeRect(0, 0, 256, 256); }
-  const ttx = new THREE.CanvasTexture(tile); ttx.wrapS = ttx.wrapT = THREE.RepeatWrapping; ttx.repeat.set((totalW + 40) / 2.2, 40 / 2.2);
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(totalW + 40, 40), mat({ map: ttx, color: 0xb0a8a0, roughness: 0.9 }));
-  floor.rotation.x = -Math.PI / 2; floor.position.set(shift + totalW / 2, 0.2, 8); scene.add(floor);
-  if (casa.length) { const s0 = casa[0], wx = shift + RX[s0.id] + s0.cols / 2; const kw = new THREE.Mesh(new THREE.PlaneGeometry(s0.cols + 12, 22), mat({ color: 0xb9b2a6, roughness: 1 })); kw.position.set(wx, 11, -2.05); scene.add(kw); }
-  if (cantina.length) { const wall = new THREE.Mesh(new THREE.PlaneGeometry(cantW + 14, 22), mat({ color: 0xa7a39b, roughness: 1 })); wall.position.set(shift + cantW / 2, 11, -1.4); scene.add(wall); }
+  const noise = (base, dots, holes) => { const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d'); g.fillStyle = base; g.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 1400; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '0,0,0' : '255,255,255'},${Math.random() * 0.05})`; g.fillRect(Math.random() * 256, Math.random() * 256, 2 + Math.random() * 4, 2 + Math.random() * 4); }
+    if (holes) { g.fillStyle = 'rgba(40,36,32,.55)'; for (let i = 0; i < dots; i++) { g.beginPath(); g.arc(Math.random() * 256, Math.random() * 256, 1.4, 0, 7); g.fill(); } }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.encoding = THREE.sRGBEncoding; return t; };
+  let floorMat;
+  if (home3) {
+    // cucina: parquet chiaro e parete calda
+    const c = document.createElement('canvas'); c.width = 256; c.height = 256; const g = c.getContext('2d');
+    for (let i = 0; i < 8; i++) { g.fillStyle = ['#b08b62', '#a7825a', '#b8946a', '#a07b54'][i % 4]; g.fillRect(0, i * 32, 256, 32); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, i * 32, 256, 1.5); g.fillRect((i * 97) % 256, i * 32, 1.5, 32); }
+    const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(10, 10); t.encoding = THREE.sRGBEncoding;
+    floorMat = mat({ map: t, roughness: 0.55 });
+    const wt = noise('#c9bfb1', 0, false); wt.repeat.set(4, 3);
+    const kw = new THREE.Mesh(new THREE.PlaneGeometry(totalW + 30, 24), mat({ map: wt, roughness: 0.95 })); kw.position.set(0, 12, -2.05); kw.receiveShadow = true; scene.add(kw);
+  } else {
+    // cantina: cotto e muro di cemento con i fori dei casseri, come nella foto
+    const tile = document.createElement('canvas'); tile.width = tile.height = 256; { const g = tile.getContext('2d'); g.fillStyle = '#b35f3f'; g.fillRect(0, 0, 256, 256); for (let i = 0; i < 60; i++) { g.fillStyle = `rgba(${Math.random() < 0.5 ? '90,30,15' : '230,150,110'},${Math.random() * 0.12})`; g.beginPath(); g.arc(Math.random() * 256, Math.random() * 256, 10 + Math.random() * 40, 0, 7); g.fill(); } g.strokeStyle = '#7d4430'; g.lineWidth = 5; g.strokeRect(0, 0, 256, 256); }
+    const ttx = new THREE.CanvasTexture(tile); ttx.wrapS = ttx.wrapT = THREE.RepeatWrapping; ttx.repeat.set((totalW + 40) / 2.2, 40 / 2.2); ttx.encoding = THREE.sRGBEncoding;
+    floorMat = mat({ map: ttx, roughness: 0.8 });
+    const wt = noise('#b7b1a8', 18, true); wt.repeat.set((totalW + 14) / 6, 22 / 6);
+    const wall = new THREE.Mesh(new THREE.PlaneGeometry(totalW + 14, 22), mat({ map: wt, roughness: 1 })); wall.position.set(0, 11, -1.4); wall.receiveShadow = true; scene.add(wall);
+  }
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(totalW + 40, 40), floorMat);
+  floor.rotation.x = -Math.PI / 2; floor.position.set(0, 0.2, 8); floor.receiveShadow = true; scene.add(floor);
   // bottiglie coricate, collo verso di noi
   const bodyG = new THREE.CylinderGeometry(0.34, 0.34, 1.0, 20); bodyG.rotateX(Math.PI / 2);
   const shG = new THREE.SphereGeometry(0.34, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2); shG.rotateX(Math.PI / 2);
@@ -174,10 +210,10 @@ async function init3d() {
   in3d().forEach((b) => {
     if (RX[b.shelf] == null) return;
     const g = new THREE.Group();
-    const glass = mat({ color: GL3[b.type] || 0x333333, roughness: 0.25, metalness: 0.2 });
-    const col = new THREE.Color(T3[b.type] || '#888');
+    const glass = new THREE.MeshPhysicalMaterial({ color: lin(GL3[b.type] || 0x333333), roughness: 0.12, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.08 });
+    const col = lin(T3[b.type] || '#888');
     const foil = mat({ color: col, roughness: 0.4, metalness: 0.35, emissive: col, emissiveIntensity: 0.18 });
-    [[bodyG, glass, -0.75], [shG, glass, -0.25], [neckG, glass, 0.25], [capG, foil, 0.42]].forEach(([geo, m, z]) => { const o = new THREE.Mesh(geo, m); o.position.z = z; o.userData.id = b.id; g.add(o); pick.push(o); });
+    [[bodyG, glass, -0.75], [shG, glass, -0.25], [neckG, glass, 0.25], [capG, foil, 0.42]].forEach(([geo, m, z]) => { const o = new THREE.Mesh(geo, m); o.position.z = z; o.userData.id = b.id; o.castShadow = true; g.add(o); pick.push(o); });
     if (shelfLoc(SHB[b.shelf]) === 'cantina') { const tag = new THREE.Mesh(tagG, tagM); tag.position.set(0, -0.28, 0.42); g.add(tag); }
     g.position.copy(slotPos(b.shelf, b.r, b.c));
     scene.add(g); items.push({ b, g, foil });
@@ -187,15 +223,15 @@ async function init3d() {
   const fov2 = Math.tan(THREE.MathUtils.degToRad(19));
   const frame = (x0, x1, y0, y1) => { const a = stage.clientWidth / Math.max(1, stage.clientHeight); return { t: new THREE.Vector3(shift + (x0 + x1) / 2, (y0 + y1) / 2, 0), d: Math.max(((y1 - y0) / 2 + 1.2) / fov2, ((x1 - x0) / 2 + 1.2) / fov2 / a) + 1.5 }; };
   const frameShelf = (s) => isPando(s) ? frame(RX[s.id] - 2.5, RX[s.id] + s.cols + 1.8, -1, s.rows + 3) : frame(RX[s.id] - 0.3, RX[s.id] + s.cols + 0.3, 0, s.rows + 1.6);
-  const frameAll = () => frame(-0.5, totalW + 0.5, 0, Math.max(...S.shelves.map((s) => s.rows)) + 2);
+  const frameAll = () => home3 && list.length === 1 ? frameShelf(list[0]) : frame(-0.5, totalW + 0.5, 0, maxRows + 2);
   const focus = (k) => {
     document.querySelectorAll('[data-v3f]').forEach((c) => c.classList.toggle('on', c.dataset.v3f === k));
-    goal = k === 'all' ? frameAll() : k === 'cantina' ? frame(-0.5, cantW + 0.5, 0, Math.max(1, ...cantina.map((s) => s.rows)) + 2) : SHB[k] ? frameShelf(SHB[k]) : null;
+    goal = k === 'all' ? frameAll() : SHB[k] ? frameShelf(SHB[k]) : null;
     if (goal) { home = goal; goal.yaw = -0.12; goal.pitch = 0.08; }
   };
   const resize = () => { const w = stage.clientWidth, h = stage.clientHeight; renderer.setSize(w, h, false); camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix(); };
   resize();
-  home = cantina.length ? frame(-0.5, cantW + 0.5, 0, Math.max(...cantina.map((s) => s.rows)) + 2) : frameAll(); target.copy(home.t); dist = home.d;
+  home = frameAll(); scene.fog.near = home.d * 1.4; scene.fog.far = home.d * 3.2; target.copy(home.t); dist = home.d * 1.35; goal = { ...home, yaw: -0.12, pitch: 0.08 }; // piccola entrata in scena
   const cv = renderer.domElement, pts = new Map(); let moved = 0, two = null, lastTap = 0;
   const right = new THREE.Vector3(), up = new THREE.Vector3();
   const panBy = (dx, dy) => {
@@ -242,7 +278,7 @@ async function init3d() {
     const it = items.find((x) => x.b.id === id), card = document.getElementById('v3card');
     if (!card) return;
     if (!it) { card.innerHTML = '<b>Tocca una bottiglia</b><small>Ti dico qual è e dove si trova. Puoi anche cercarla qui sopra.</small>'; return; }
-    selRing = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 8, 32), new THREE.MeshBasicMaterial({ color: 0xffffff })); selRing.position.z = 0.1; it.g.add(selRing);
+    selRing = new THREE.Mesh(new THREE.TorusGeometry(0.46, 0.05, 8, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xd4af6a).convertSRGBToLinear() })); selRing.position.z = 0.1; it.g.add(selRing);
     const b = it.b, z = shelfZones(SHB[b.shelf] || {}).find((q) => b.r >= q.from && b.r <= q.to);
     const sub = [b.region ? String(b.region).split(/[,(]/)[0].trim() : '', b.grapes || '', b.value ? eur(b.value) : ''].filter(Boolean).join(' · ');
     card.innerHTML = `<span class="v3row">${b.thumb ? `<img src="${b.thumb}" alt="">` : `<i class="vdot t-${esc(b.type)}">${esc(String(b.vintage || '').slice(-2))}</i>`}<span><b>${esc(name(b))}${b.vintage ? ' ' + esc(b.vintage) : ''}</b><small>${esc(sub)}</small><span class="v3pos"><i>${esc(posLabel(b))}${z ? ' · ' + z.t + ' °C' : ''}</i></span></span></span><button class="link" type="button" data-v3open="${esc(b.id)}">Apri la scheda</button>`;
@@ -264,6 +300,7 @@ async function init3d() {
   window.addEventListener('resize', resize);
   raf = requestAnimationFrame(loop);
   v3 = { stop, focus, select, zoom, ids: () => items.map((x) => x.b.id) };
+  if (v3pending) { const id = v3pending; v3pending = null; setTimeout(() => select(id, true), 400); }
 }
 
 // ricerca di una bottiglia nella scena
@@ -301,12 +338,16 @@ function layoutDialog() {
 
 
 document.addEventListener('click', (e) => {
-  const t = e.target.closest && e.target.closest('[data-v3f],[data-v3open],[data-v3z],[data-v3go],[data-a="v3layout"]');
+  const t = e.target.closest && e.target.closest('[data-v3f],[data-v3open],[data-v3z],[data-v3go],[data-v3zone],[data-a="v3layout"]');
   if (!t) return;
+  if (t.dataset.v3zone) { if (t.dataset.v3zone !== v3zone) { v3zone = t.dataset.v3zone; render(); } return; }
   if (t.dataset.v3f) { if (v3) v3.focus(t.dataset.v3f); return; }
   if (t.dataset.v3open) { openBottle(t.dataset.v3open); return; }
   if (t.dataset.v3z) { if (v3) v3.zoom(t.dataset.v3z); return; }
-  if (t.dataset.v3go) { if (v3) v3.select(t.dataset.v3go, true); const st = document.getElementById('v3stage'); if (st) st.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  if (t.dataset.v3go) {
+    const b = S.bottles[t.dataset.v3go], sh = b && S.shelves.find((x) => x.id === b.shelf), z = sh && shelfLoc(sh) === 'casa' ? 'casa' : 'cantina';
+    if (z !== v3zone) { v3zone = z; v3pending = b.id; render(); return; }
+    if (v3) v3.select(t.dataset.v3go, true); const st = document.getElementById('v3stage'); if (st) st.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   if (t.dataset.a === 'v3layout') layoutDialog();
 });
 document.addEventListener('input', (e) => { if (e.target && e.target.id === 'v3q') v3search(e.target.value); });
