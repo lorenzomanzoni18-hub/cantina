@@ -287,7 +287,9 @@ async function applyPlan() {
   const plan = computePlan();
   // tutte insieme e un solo ridisegno alla fine
   const now = Date.now();
-  for (const m of plan.moves) { const nb = { ...S.bottles[m.b.id], shelf: m.to[0], r: m.to[1], c: m.to[2], upd: now }; S.bottles[nb.id] = nb; try { await dbPut('bottles', nb); } catch (_) {} }
+  if (v3) { v3.stop(); v3 = null; }
+  const list = plan.moves.map((m) => { const nb = { ...S.bottles[m.b.id], shelf: m.to[0], r: m.to[1], c: m.to[2], upd: now }; S.bottles[nb.id] = nb; return nb; });
+  await Promise.all(list.map((nb) => dbPut('bottles', nb).catch(() => {})));
   if (typeof scheduleSync === 'function') scheduleSync();
   v3saveDone(new Set());
   return plan.moves.length;
@@ -329,7 +331,7 @@ document.addEventListener('click', async (e) => {
   }
   if (t.id === 'v3apply') {
     if (!t.dataset.armed) { t.dataset.armed = '1'; t.textContent = 'Conferma: sposto ' + computePlan().moves.length + ' bottiglie nell\'app'; $('#v3am').textContent = 'Fallo quando hai spostato davvero le bottiglie negli scaffali.'; return; }
-    t.disabled = true; const n = await applyPlan(); v3view = 'now'; render(); msg('Posizioni aggiornate: ' + n + (n === 1 ? ' bottiglia.' : ' bottiglie.')); setTimeout(() => msg(''), 5000); return;
+    t.disabled = true; t.textContent = 'Aggiorno…'; const n = await applyPlan(); v3view = 'now'; render(); msg('Posizioni aggiornate: ' + n + (n === 1 ? ' bottiglia.' : ' bottiglie.')); setTimeout(() => msg(''), 5000); return;
   }
   if (t.dataset.v3m && v3) { v3.select(t.dataset.v3m, true); const st = document.getElementById('v3stage'); if (st) st.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
 });
