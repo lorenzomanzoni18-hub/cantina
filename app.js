@@ -562,7 +562,10 @@ function cantina() {
   const pm = posMap();
   let h = S.shelves.map((s) => {
     let cells = '', used = 0;
+    const zs = typeof shelfZones === 'function' ? shelfZones(s) : [];
     for (let r = 0; r < s.rows; r++) for (let c = 0; c < s.cols; c++) {
+      const z = c === 0 && zs.length > 1 && zs.find((x) => x.from === r);
+      if (z) cells += `<div class="zlab${r ? ' zsep' : ''}"><span>${z.t} °C</span></div>`;
       const b = pm[s.id + '|' + r + '|' + c];
       if (b) used++;
       const has = b && imgSrc(b);
@@ -570,7 +573,7 @@ function cantina() {
       cells += `<button class="cell${b && b.id === moving ? ' mv' : ''}" data-a="slot" data-s="${esc(s.id)}" data-r="${r}" data-c="${c}" title="${esc(b ? name(b) + ' ' + (b.vintage || '') + (isStd(b) ? '' : ' · ' + sizeName(sizeMl(b))) : 'Posto libero')}" aria-label="${esc(b ? name(b) : 'Posto libero')}"><span class="dot ${b ? 't-' + esc(b.type) : ''} ${b ? status(b) : ''}${has ? ' has' : ''}"${has ? ` style="background-image:url('${imgSrc(b)}')"` : ''}>${b ? `<span class="vin">${esc(b.vintage || '')}</span>` : ''}${b && !isStd(b) ? `<span class="fmt">${esc(sizeShort(sizeMl(b)))}</span>` : ''}${b && status(b) ? `<span class="sdot ${status(b)}"></span>` : ''}</span>${lbl}</button>${c === s.cols - 1 ? '<i class="plank"></i>' : ''}`;
     }
     const tot = s.rows * s.cols;
-    return `<section class="shelf"><header><h2>${esc(s.name)} <small class="free">${typeof shelfLoc === 'function' && shelfLoc(s) === 'casa' ? 'In casa' + (shelfZones(s).length ? ' · ' + shelfZones(s).map((z) => z.t + '°').join(' / ') : '') + ' · ' : ''}${used} di ${tot}${tot - used ? ' · ' + (tot - used === 1 ? '1 posto libero' : (tot - used) + ' liberi') : ' · pieno'}</small></h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
+    return `<section class="shelf"><header><h2>${esc(s.name)} <small class="free">${typeof shelfLoc === 'function' && shelfLoc(s) === 'casa' ? 'In casa · ' : ''}${used} di ${tot}${tot - used ? ' · ' + (tot - used === 1 ? '1 posto libero' : (tot - used) + ' liberi') : ' · pieno'}</small></h2><button class="link" data-a="editShelf" data-id="${esc(s.id)}">Modifica</button></header><div class="grid" style="--c:${s.cols}">${cells}</div></section>`;
   }).join('');
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && inCellar(b)).length;

@@ -192,7 +192,7 @@ h3{font-family:"Plus Jakarta Sans",system-ui,sans-serif}
 .statlink{margin:4px 2px 0;font-size:12px;color:var(--mute);text-align:right}
 
 /* barra delle schede in basso */
-nav{position:fixed;left:0;right:0;bottom:0;z-index:9;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;max-width:720px;margin:0 auto;padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(24,21,20,.96);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:9;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0;max-width:720px;margin:0 auto;padding:6px 6px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(24,21,20,.96);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);border-top:1px solid var(--line)}
 nav button{border:0;background:none;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0;font-size:11px;font-weight:600;color:#8A817A;border-radius:10px;min-width:0}
 nav button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 nav button[aria-pressed=true]{background:none;color:var(--gold);border:0}
@@ -327,7 +327,7 @@ details.aiinfo[open] summary{margin-bottom:10px}
 .scanbox{position:relative;border-radius:16px;overflow:hidden;background:#000;aspect-ratio:4/3;margin:6px 0 10px}
 .scanbox video{width:100%;height:100%;object-fit:cover;display:block}
 .scanbox i{position:absolute;left:12%;right:12%;top:38%;bottom:38%;border:2px solid var(--gold);border-radius:10px;box-shadow:0 0 0 999px rgba(0,0,0,.35)}
-nav{grid-template-columns:repeat(7,minmax(0,1fr))}
+nav{grid-template-columns:repeat(6,minmax(0,1fr))}
 nav button{font-size:10.5px}
 /* --- pagina Calici --- */
 .ptitle{font-size:30px;margin:10px 0 4px}
@@ -530,3 +530,9 @@ input,select,textarea,.fr>input,.fr>select,.fr>span>input,.fr>span>select,.fb te
 .lg-it b{font-size:12.5px;line-height:1.2;overflow-wrap:anywhere}
 .lg-it small{font-size:11px;color:var(--mute);line-height:1.2}
 .lg-ok{font-style:normal;font-size:10px;color:#8FD1A4}
+
+/* zone di temperatura dentro lo scaffale */
+.zlab{grid-column:1/-1;display:flex;align-items:center;gap:8px;margin:-4px 2px -2px;font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--gold)}
+.zlab::before,.zlab::after{content:"";flex:1;height:1px;background:rgba(201,169,110,.28)}
+.zlab span{flex:none;padding:2px 9px;border-radius:9px;background:rgba(201,169,110,.12)}
+.zlab.zsep{margin-top:6px}
