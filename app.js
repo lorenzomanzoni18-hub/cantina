@@ -474,7 +474,6 @@ function render() {
     luna: ['Luna', 'Calendario biodinamico'],
     stats: ['Statistiche', '‹ Cantina', 'cantina'],
     mappa: ['Mappa', 'Dove nascono i tuoi vini'],
-    vista3d: ['Cantina in 3D', 'Tocca una bottiglia per sapere qual è'],
   }[tab] || ['Cantina', ''];
   $('#ptitle').textContent = H[0];
   const eb = $('#eyebrow');
@@ -484,10 +483,9 @@ function render() {
   $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
   const navT = tab === 'stats' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
-  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage, vista3d: () => (typeof page3d === 'function' ? page3d() : '') };
+  const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
   $('#app').innerHTML = (pages[tab] || cantina)();
   if (tab === 'mappa') setTimeout(initMap, 0);
-  if (tab === 'vista3d' && typeof init3d === 'function') setTimeout(init3d, 0);
 }
 
 let moving = null;
