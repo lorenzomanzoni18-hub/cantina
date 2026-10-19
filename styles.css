@@ -536,3 +536,7 @@ input,select,textarea,.fr>input,.fr>select,.fr>span>input,.fr>span>select,.fb te
 .zlab::before,.zlab::after{content:"";flex:1;height:1px;background:rgba(201,169,110,.28)}
 .zlab span{flex:none;padding:2px 9px;border-radius:9px;background:rgba(201,169,110,.12)}
 .zlab.zsep{margin-top:6px}
+.ptr{position:fixed;top:calc(env(safe-area-inset-top,0px) + 6px);left:50%;z-index:60;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--sf);border:1px solid var(--line);color:var(--mute);box-shadow:0 4px 14px rgba(0,0,0,.35);opacity:0;transform:translate(-50%,-50px);pointer-events:none}
+.ptr.ready{color:var(--wine)}
+.ptr.spin svg{animation:ptrspin .8s linear infinite;color:var(--wine)}
+@keyframes ptrspin{to{transform:rotate(360deg)}}
