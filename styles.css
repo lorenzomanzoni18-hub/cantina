@@ -606,3 +606,19 @@ body:has(.floatbar) .fab{display:none}
 :root[data-theme="light"] .mland.ghost{fill:#EEE6DB}
 :root[data-theme="light"] .mland.on{fill:#A8344F}
 :root[data-theme="light"] .msea,:root[data-theme="light"] .smap{fill:#F9F5EF;background:#F9F5EF}
+
+/* Scheda bottiglia divisa in sezioni */
+.stabs{position:sticky;top:22px;z-index:2;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin:14px -18px 4px;padding:6px 14px;background:var(--sf);border-bottom:1px solid var(--line)}
+.stabs::-webkit-scrollbar{display:none}
+.stabs button{flex:0 0 auto;border:0;background:none;color:var(--mute);font:inherit;font-size:14px;font-weight:600;padding:8px 11px;border-radius:999px;cursor:pointer;white-space:nowrap}
+.stabs button.on{background:var(--wine);color:#fff}
+.stabs button span{opacity:.75;font-weight:500}
+.ssec{min-height:40vh}
+.ssec .gh:first-child{margin-top:12px}
+.aitext label{display:block;margin-top:10px}
+/* Il «+» unico */
+.nchoose{display:grid;gap:10px;margin:14px 0 6px}
+.nchoose .btn.big{display:flex;justify-content:center;padding:15px;font-size:17px;width:100%}
+/* Pallino sull'ingranaggio quando c'è qualcosa da sistemare */
+.gear{position:relative}
+.gear.attn::after{content:"";position:absolute;top:8px;right:8px;width:9px;height:9px;border-radius:50%;background:#D9534F;box-shadow:0 0 0 2px var(--sf2)}
