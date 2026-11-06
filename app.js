@@ -95,10 +95,18 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '48';
+const APP_VERSION = '50';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
+const THEME_KEY = 'cantina.theme';
+function themeNow() { try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; } catch (_) { return 'dark'; } }
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === 'light' ? '#F6F1EA' : '#121010';
+  const cs = document.querySelector('meta[name="color-scheme"]'); if (cs) cs.content = t;
+}
+applyTheme(themeNow());
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
@@ -414,6 +422,8 @@ function today(){if(dayOff!==0)return other();const now=Date.now(),c=kind(now),g
 
 /* ===== Schermate ===== */
 const imgSrc = (b) => b.thumb || '';
+/* Gli avvisi (backup, chiave IA) stanno nelle Impostazioni; l'ingranaggio mostra un pallino. */
+const attnNotes = () => (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner().replace('<button class="btn" data-a="settings">Impostazioni</button>', '');
 const keyBanner = () => aiReady() || (() => { try { return +localStorage.getItem('cantina.keyLater') > Date.now(); } catch (_) { return false; } })() ? '' : `<div class="note keyban"><b>Lettura automatica spenta.</b> Per leggere le etichette serve la chiave dell'IA.<div class="acts"><button class="btn" data-a="settings">Impostazioni</button><button class="btn" data-a="keylater">Non ora</button></div></div>`;
 /* Bottiglie uguali (una cassa) condividono lo stesso wid: le informazioni si aggiornano insieme. */
 const inCellar = (b) => !b.drunk && !b.pending && !b.wish;
@@ -457,8 +467,11 @@ function status(b) {
   return y < a ? 'st-wait' : y > z ? 'st-past' : 'st-now';
 }
 
+let lastTab = null;
 function render() {
   if (typeof killMap === 'function') killMap();
+  const keepY = lastTab === tab ? window.scrollY : 0, sameTab = lastTab === tab;
+  lastTab = tab;
   const all = Object.values(S.bottles);
   const bs = all.filter((b) => inCellar(b));
   const spent = bs.reduce((a, b) => a + (b.price || 0), 0);
@@ -480,11 +493,17 @@ function render() {
   eb.textContent = H[1];
   if (H[2]) { eb.dataset.a = 'tab'; eb.dataset.t = H[2]; eb.classList.add('back'); eb.tabIndex = 0; } else { delete eb.dataset.a; eb.classList.remove('back'); eb.tabIndex = -1; }
   document.body.dataset.tab = tab;
+  const gearEl = document.querySelector('.gear[data-a="settings"]');
+  if (gearEl) gearEl.classList.toggle('attn', !!attnNotes());
   $('#tot').innerHTML = tab === 'cantina' && all.length ? `<button class="sumc" data-a="tab" data-t="stats"><span class="sum-l"><small>Valore della cantina</small><b>${eur(val)}${spent && gain ? ` <i class="${gain >= 0 ? 'up' : 'down'}">${gain >= 0 ? '+' : ''}${gain}%</i>` : ''}</b><small>${bs.length} ${bs.length === 1 ? 'bottiglia' : 'bottiglie'} · ${nW} ${nW === 1 ? 'vino' : 'vini'} · speso ${eur(spent)}</small></span><span class="sum-r">Statistiche ›</span></button>` : '';
   const navT = tab === 'stats' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
   const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
-  $('#app').innerHTML = (pages[tab] || cantina)();
+  const app = $('#app');
+  if (sameTab) app.style.minHeight = app.offsetHeight + 'px';   // niente salto mentre il contenuto viene ridisegnato
+  app.innerHTML = (pages[tab] || cantina)();
+  if (sameTab) { window.scrollTo(0, keepY); requestAnimationFrame(() => { app.style.minHeight = ''; window.scrollTo(0, keepY); }); }
+  else window.scrollTo(0, 0);
   if (tab === 'mappa') setTimeout(initMap, 0);
 }
 
@@ -578,10 +597,10 @@ function cantina() {
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && inCellar(b)).length;
   placeQ = placeQ.filter((id) => S.bottles[id] && inCellar(S.bottles[id]) && !S.bottles[id].shelf);
-  const pq = placeQ.length ? `<div class="note place"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
-  const mvb = moving && S.bottles[moving] ? `<div class="note"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
+  const pq = placeQ.length ? `<div class="note place floatbar"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
+  const mvb = moving && S.bottles[moving] ? `<div class="note floatbar"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
   const v3btn = '';
-  return pq + mvb + (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner() + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
+  return pq + mvb + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
 
 const nrm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -647,7 +666,6 @@ function lista(all) {
     <label>Zona</label><select data-flt="region">${opt(uniq((b) => b.region).sort((a, b) => a.localeCompare(b, 'it')), flt.region, 'Tutte le zone')}</select>
     <label>Annata</label><select data-flt="vint">${opt(uniq((b) => b.vintage).sort(), flt.vint, 'Tutte le annate')}</select>
     <label>Formato</label><select data-flt="size"><option value="">Tutti i formati</option>${[...new Set(pool.map(sizeMl))].sort((a, b) => a - b).map((v) => `<option value="${v}" ${String(v) === flt.size ? 'selected' : ''}>${esc(sizeName(v))}</option>`).join('')}</select>
-    ${allTags.length ? `<label>Lista</label><select data-flt="tag">${opt(allTags, flt.tag, 'Tutte le liste')}</select>` : ''}
     <label>Ordine</label><select data-flt="sort"><option value="az" ${flt.sort === 'az' ? 'selected' : ''}>${drunkView ? 'Più recenti prima' : 'Ordine alfabetico'}</option><option value="value" ${flt.sort === 'value' ? 'selected' : ''}>Valore più alto</option><option value="vint" ${flt.sort === 'vint' ? 'selected' : ''}>Annata più vecchia</option>${!drunkView ? `<option value="drink" ${flt.sort === 'drink' ? 'selected' : ''}>Da bere prima</option>` : ''}</select>
     <div class="acts"><button class="btn pri" data-a="fltdone">Fatto</button><button class="btn" data-a="clearflt">Azzera tutto</button></div>`;
   const any = flt.type || flt.stat || flt.region || flt.vint || flt.size || flt.tag || q;
@@ -804,6 +822,18 @@ const blobToDataURL = (b) => new Promise((res, rej) => { const f = new FileReade
 const dataURLToBlob = (u) => fetch(u).then((r) => r.blob());
 
 /* ===== Scheda bottiglia ===== */
+/* Un solo «+»: scegli se fotografare l'etichetta o scrivere a mano. */
+let shotFile = null;
+function newChooser(pre) {
+  const d = $('#dlg2');
+  d.innerHTML = `<h2>${pre && pre.wish ? 'Nuovo vino nei desideri' : 'Nuova bottiglia'}</h2>
+  <div class="nchoose"><label class="btn pri big">Scatta l'etichetta<input type="file" accept="image/*" capture="environment" hidden class="ncf"></label><label class="btn big">Foto dalla galleria<input type="file" accept="image/*" hidden class="ncf"></label><button class="btn big" type="button" id="nc_hand">Scrivi a mano</button></div>
+  <p class="info">Dalla foto compilo io i campi, tu controlli.</p>`;
+  d.querySelectorAll('.ncf').forEach((inp) => inp.onchange = () => { const f = inp.files[0]; if (!f) return; shotFile = f; d.close(); openBottle(null, pre); });
+  $('#nc_hand').onclick = async () => { d.close(); await openBottle(null, pre); const pc = $('#photoctl'); if (pc) pc.hidden = true; };
+  d.onclose = null;
+  if (!d.open) d.showModal();
+}
 async function openBottle(id, pre) {
   const old = id ? S.bottles[id] : null;
   const b = old ? { ...old } : { id: gid(), type: 'rosso', shelf: null, r: 0, c: 0, added: Date.now(), buyDate: pre && pre.wish ? '' : new Date().toLocaleDateString('sv-SE'), ...pre };
@@ -843,8 +873,9 @@ async function openBottle(id, pre) {
   <div id="pbox" class="pbox" contenteditable="true" inputmode="none">Per incollare un'immagine trovata online: tieni premuto qui e scegli Incolla.</div>
   </div>
   <div id="retbox"></div>
+  <div class="stabs" role="tablist" id="stabs"><button type="button" data-s="vino" class="on">Vino</button><button type="button" data-s="bere">Bere</button><button type="button" data-s="acq">Acquisto</button><button type="button" data-s="deg">Assaggi<span id="tcount"></span></button><button type="button" data-s="prod">Produttore</button></div>
 
-  <h4 class="gh">Il vino</h4><div class="grp">
+  <div class="ssec" data-s="vino"><h4 class="gh">Il vino</h4><div class="grp">
   <div class="fr"><label for="f_producer">Produttore</label><input id="f_producer" placeholder="Obbligatorio" value="${esc(b.producer)}"></div>
   <div class="fr"><label for="f_cuvee">Cuvée</label><input id="f_cuvee" placeholder="Etichetta" value="${esc(b.cuvee)}"></div>
   <div class="fr"><label for="f_vintage">Annata</label><input id="f_vintage" inputmode="numeric" placeholder="es. 2019" value="${esc(b.vintage)}"></div>
@@ -866,7 +897,7 @@ async function openBottle(id, pre) {
   </div>
   <p class="info" id="f_wishi" ${state0 === 'wish' ? '' : 'hidden'}>Quando lo compri, cambia lo stato in «In cantina» o «In arrivo».</p>${state0 === 'pend' && nPend > 1 ? `<p class="info">Quando arrivano, scegli «In cantina»: cambio stato a tutte le ${nPend} bottiglie in arrivo e poi le posizioni.</p>` : ''}`}
 
-  <h4 class="gh">Acquisto e valore</h4><div class="grp">
+  </div><div class="ssec" data-s="acq" hidden><h4 class="gh">Acquisto e valore</h4><div class="grp">
   <div class="fr"><label for="f_price">Pagato €</label><input id="f_price" inputmode="decimal" placeholder="Prezzo d'acquisto" value="${esc(b.price)}"></div>
   <div class="fr"><label for="f_value">Valore €</label><input id="f_value" inputmode="decimal" placeholder="Di mercato" value="${esc(b.value)}"></div>
   <div class="fb"><p class="info" id="f_basis">${autoVal ? (valueNote ? 'Stima non verificata da ricerca online: ' + esc(valueNote) : 'Stima automatica non verificata: puoi correggerla.') : ''}</p><a class="link" id="ws" target="_blank" rel="noopener" href="#">Cerca il prezzo su Wine-Searcher</a></div>
@@ -874,22 +905,20 @@ async function openBottle(id, pre) {
   <div class="fr"><label for="f_bwhere">Da</label><input id="f_bwhere" list="dl_where" autocomplete="off" placeholder="Enoteca, cantina, online…" value="${esc(b.buyWhere)}"></div>
   <div class="fr"><label for="f_bnote">Note</label><input id="f_bnote" placeholder="Cassa da 6, regalo…" value="${esc(b.buyNote)}"></div>
   <div class="fr"><label for="f_lot">Lotto</label><input id="f_lot" placeholder="Dalla retro-etichetta" value="${esc(b.lot)}"></div>
-  <div class="fr"><label for="f_tags">Liste</label><input id="f_tags" autocomplete="off" placeholder="Regali, ristorante…" value="${esc(tagsOf(b).join(', '))}"></div>
-  <div class="fb tagpick">${[...new Set(Object.values(S.bottles).flatMap(tagsOf))].sort((a, c) => a.localeCompare(c, 'it')).map((t) => `<button type="button" class="link" data-tag="${esc(t)}">+ ${esc(t)}</button>`).join('')}</div>
   </div>
-  <datalist id="dl_where">${[...new Set(Object.values(S.bottles).map((x) => x.buyWhere).filter(Boolean))].sort((a, c) => a.localeCompare(c, 'it')).map((w) => `<option value="${esc(w)}"></option>`).join('')}</datalist>
+  <datalist id="dl_where">${[...new Set(Object.values(S.bottles).map((x) => x.buyWhere).filter(Boolean))].sort((a, c) => a.localeCompare(c, 'it')).map((w) => `<option value="${esc(w)}"></option>`).join('')}</datalist></div>
 
-  <h4 class="gh">Quando berla</h4><div class="grp"><div class="fb"><div id="dwin"></div><textarea id="f_drink" rows="3" placeholder="Finestra ideale, picco, se è pronta…">${esc(b.drink)}</textarea></div></div>
+  <div class="ssec" data-s="bere" hidden><h4 class="gh">Quando berla</h4><div class="grp"><div class="fb"><div id="dwin"></div><textarea id="f_drink" rows="3" placeholder="Finestra ideale, picco, se è pronta…">${esc(b.drink)}</textarea></div></div>
   <h4 class="gh">Abbinamenti</h4><div class="grp"><div class="fb"><textarea id="f_pairing" rows="2" placeholder="Piatti consigliati">${esc(b.pairing)}</textarea><div class="info" id="rext"></div></div></div>
   <h4 class="gh">Servizio</h4><div id="svcbox">${serviceHtml(b)}</div>
-  <h4 class="gh">Degustazioni</h4><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div>
-  <details class="more aiinfo"><summary>Produttore, vino e annata</summary>
+  </div><div class="ssec" data-s="deg" hidden><h4 class="gh">Degustazioni</h4><div id="tst"></div><div class="acts"><button class="btn" id="addt" type="button">Aggiungi degustazione</button></div></div>
+  <div class="ssec" data-s="prod" hidden><h4 class="gh">Produttore, vino e annata</h4><div class="aitext">
   <label>Il produttore</label><textarea id="f_info" rows="6">${esc(b.info)}</textarea>
   <label>Sulla cuvée e sulla bottiglia</label><textarea id="f_winfo" rows="7">${esc(b.winfo)}</textarea>
   <div ${b.prod ? '' : 'hidden'}><label>Produzione e bottiglie prodotte</label><textarea id="f_prod" rows="3">${esc(b.prod)}</textarea></div>
   <label>Sull'annata</label><textarea id="f_vinfo" rows="4">${esc(b.vinfo)}</textarea>
-  <div class="info" id="esrc"></div></details>
-  <p class="info">Le informazioni automatiche sono stime dell'IA: controllale prima di fidarti.</p>
+  <div class="info" id="esrc"></div></div>
+  <p class="info">Le informazioni automatiche sono stime dell'IA: controllale prima di fidarti.</p></div>
   <div class="acts">${id ? '' : '<button class="btn" id="svn">Salva e aggiungi un\'altra</button>'}${id ? '<button class="btn danger" id="del">Elimina</button>' : ''}</div>
   <div class="sbar"><button class="btn pri" id="sv">Salva</button>${id && inCellar(b) ? '<button class="btn" id="drk">Bevuta o regalata</button>' : ''}${b.drunk ? '<button class="btn" id="undrk">Rimetti in cantina</button>' : ''}</div>`;
 
@@ -1106,7 +1135,8 @@ async function openBottle(id, pre) {
     } catch (_) { scs('Non riesco a leggere gli appunti: tieni premuto nel riquadro tratteggiato e scegli Incolla.'); }
   };
 
-  document.querySelectorAll('.ph').forEach((inp) => inp.onchange = async (e) => {
+  const phIns = [...document.querySelectorAll('.ph')];
+  phIns.forEach((inp) => inp.onchange = async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
     if (!file) return;
@@ -1140,6 +1170,7 @@ async function openBottle(id, pre) {
       notice('Lettura non riuscita', esc(errorHint(err.message)) + '<br><br><small>Dettaglio: ' + esc(err.message) + '</small>', [{ t: 'Impostazioni', fn: openSettings }, { t: 'Chiudi', pri: true }]);
     }
   });
+  if (shotFile && !id) { const f = shotFile; shotFile = null; setTimeout(() => phIns[0].onchange({ target: { files: [f], value: '' } }), 60); }
 
   // Intestazione con nome e dettagli, grafico della finestra di beva
   const updHead = () => {
@@ -1194,16 +1225,14 @@ async function openBottle(id, pre) {
   // Stato, liste e degustazioni
   const stateOf = () => ($('#f_state') ? $('#f_state').value : 'in');
   if ($('#f_state')) $('#f_state').onchange = () => { const v = stateOf(); $('#f_etaw').hidden = v !== 'pend'; $('#f_wishi').hidden = v !== 'wish'; $('#f_posw').hidden = v !== 'in'; };
-  d.querySelectorAll('[data-tag]').forEach((x) => x.onclick = () => {
-    const cur = $('#f_tags').value.split(',').map((t) => t.trim()).filter(Boolean);
-    if (!cur.includes(x.dataset.tag)) cur.push(x.dataset.tag);
-    $('#f_tags').value = cur.join(', ');
-  });
   const showT = () => {
     const ts = tastings.slice().sort((x, y) => String(y.date).localeCompare(String(x.date)));
+    $('#tcount').textContent = ts.length ? ' ' + ts.length : '';
     $('#tst').innerHTML = ts.length ? ts.map((t) => `<div class="tasting"><b>${esc(new Date(t.date).toLocaleDateString('it-IT', { day: 'numeric', month: 'long', year: 'numeric' }))}</b>${t.rating ? ' <span class="stars">' + '★'.repeat(t.rating) + '☆'.repeat(5 - t.rating) + '</span>' : ''}${t.drunk ? ' <small>bottiglia aperta</small>' : ''}${t.notes ? '<p>' + esc(t.notes) + '</p>' : ''}</div>`).join('') : '<p class="info">Nessuna degustazione ancora. Aggiungine una quando assaggi questo vino, anche fuori casa.</p>';
   };
   showT();
+  const showSec = (k) => { d.querySelectorAll('#stabs button').forEach((x) => x.classList.toggle('on', x.dataset.s === k)); d.querySelectorAll('.ssec').forEach((x) => { x.hidden = x.dataset.s !== k; }); };
+  d.querySelectorAll('#stabs button').forEach((x) => x.onclick = () => { showSec(x.dataset.s); const t = $('#stabs'); if (t.getBoundingClientRect().top < 0) t.scrollIntoView({ block: 'start' }); });
   $('#addt').onclick = () => tastingDialog(name(build()), false, (t) => { tastings.push(t); showT(); });
   const build = () => {
     const p = g('pos'), [sh, r, c] = p ? p.split('|') : [null, 0, 0];
@@ -1212,7 +1241,7 @@ async function openBottle(id, pre) {
       ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
       price: num(g('price')), value: num(g('value')), valueAuto: autoVal && g('value') !== '',
       buyDate: g('bdate'), buyWhere: g('bwhere'), buyNote: g('bnote'), grapes: g('grapes'), abv: num(g('abv')), lot: g('lot'), disg: g('disg'), dosage: g('dosage'),
-      tags: [...new Set($('#f_tags').value.split(',').map((t) => t.trim()).filter(Boolean))], tastings: tastings.slice(),
+      tastings: tastings.slice(),
       drink: g('drink'), drinkFrom: dFrom, drinkTo: dTo, pairing: g('pairing'),
       info: g('info'), winfo: g('winfo'), vinfo: g('vinfo'), prod: g('prod'), srcLinks, valueNote: autoVal && g('value') !== '' ? valueNote : '', touched: [...touched],
       thumb: photo || photoFull ? thumb : null, useFull, shelf: sh, r: +r, c: +c,
@@ -1462,7 +1491,10 @@ function foldSections(d) {
 function openSettings() {
   const c = getCfg();
   const d = $('#dlg2');
-  d.innerHTML = `<h2>Impostazioni</h2>
+  d.innerHTML = `<h2>Impostazioni</h2>${attnNotes()}
+  <h3 style="margin:8px 0 4px;font-size:16px">Aspetto</h3>
+  <div class="seg" role="group" aria-label="Tema"><button class="btn${themeNow() === 'dark' ? ' pri' : ''}" data-a="theme" data-v="dark">Scuro</button><button class="btn${themeNow() === 'light' ? ' pri' : ''}" data-a="theme" data-v="light">Chiaro (prova)</button></div>
+  <p class="info">Il tema chiaro è in prova: puoi tornare allo scuro quando vuoi da qui.</p>
   <h3 style="margin:8px 0 4px;font-size:16px">Lettura etichette e informazioni automatiche</h3>
   <p class="badge" id="c_state"></p>
   <p class="info">Serve una chiave di un servizio di IA. La chiave resta solo su questo telefono. Senza chiave l'app funziona uguale, ma compili tu i campi.</p>
@@ -1627,18 +1659,19 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-a]');
   if (!t) return;
   const a = t.dataset.a;
-  if (a === 'tab') { tab = t.dataset.t; if (tab === 'luna') { calMode = 'month'; syncCal(); } render(); }
-  else if (a === 'new') openBottle(null, tab === 'lista' && flt.view === 'wish' ? { wish: true } : tab === 'lista' && flt.view === 'pend' ? { pending: true } : {});
+  if (a === 'tab') { const again = tab === t.dataset.t && t.closest('nav'); tab = t.dataset.t; if (tab === 'luna') { calMode = 'month'; syncCal(); } render(); if (again) window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  else if (a === 'new') newChooser(tab === 'lista' && flt.view === 'wish' ? { wish: true } : tab === 'lista' && flt.view === 'pend' ? { pending: true } : {});
   else if (a === 'newShelf') openShelf(null);
+  else if (a === 'theme') { try { localStorage.setItem(THEME_KEY, t.dataset.v); } catch (_) {} applyTheme(t.dataset.v); t.parentNode.querySelectorAll('button').forEach((x) => x.classList.toggle('pri', x === t)); }
   else if (a === 'settings') openSettings();
   else if (a === 'appupdate') forceUpdate();
   else if (a === 'fchip') { const k = t.dataset.k; flt[k] = flt[k] === t.dataset.v ? '' : t.dataset.v; render(); }
   else if (a === 'fclear') { flt[t.dataset.k] = ''; render(); }
   else if (a === 'fltsheet') { const d2 = $('#dlg2'); d2.innerHTML = fltSheetHtml(); d2.onclose = null; if (!d2.open) d2.showModal(); }
   else if (a === 'fltdone') { $('#dlg2').close(); }
-  else if (a === 'keylater') { try { localStorage.setItem('cantina.keyLater', String(Date.now() + 30 * 86400000)); } catch (_) {} render(); }
+  else if (a === 'keylater') { try { localStorage.setItem('cantina.keyLater', String(Date.now() + 30 * 86400000)); } catch (_) {} const nt = t.closest('.note'); if (nt) nt.remove(); render(); }
   else if (a === 'bkwizard') { const d1 = $('#dlg2'); if (d1.open) d1.close(); openWizard(); }
-  else if (a === 'bklater') { try { localStorage.setItem('cantina.bkLater', String(Date.now() + 14 * 86400000)); } catch (_) {} render(); }
+  else if (a === 'bklater') { try { localStorage.setItem('cantina.bkLater', String(Date.now() + 14 * 86400000)); } catch (_) {} const nt = t.closest('.note'); if (nt) nt.remove(); render(); }
   else if (a === 'producer') producerPage(t.dataset.p);
   else if (a === 'openp') { ['#dlg2', '#dlg'].forEach((x) => { if ($(x).open) $(x).close(); }); openBottle(t.dataset.id); }
   else if (a === 'day') { dayOff = t.dataset.o !== undefined ? +t.dataset.o : dayOff + (+t.dataset.d); syncCal(); render(); }
@@ -1667,7 +1700,6 @@ document.addEventListener('click', (e) => {
   else if (a === 'asksend') { const ta = $('#ask'); askSend(ta ? ta.value : ''); }
   else if (a === 'askex') askSend(t.dataset.q);
   else if (a === 'askclear') { askLog = []; render(); }
-  else if (a === 'mreg') pickRegion(+t.dataset.i, true);
   else if (a === 'cancelMove') { moving = null; render(); }
   else if (a === 'placeStop') { placeQ = []; render(); }
   else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) { const snap = snapIds([m.id]); persistBottle({ ...m, shelf: null, r: 0, c: 0 }); showUndo('Tolta dallo scaffale', snap); } else render(); }
@@ -1689,7 +1721,7 @@ document.addEventListener('click', (e) => {
       return;
     }
     if (!b) { openPlace(sh, r, c); return; }
-    notice(name(b) + (b.vintage ? ' ' + b.vintage : ''), 'Cosa vuoi fare?', [{ t: 'Apri scheda', pri: true, fn: () => openBottle(b.id) }, { t: 'Sposta', fn: () => { moving = b.id; tab = 'cantina'; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }, { t: 'Chiudi' }]);
+    notice(name(b) + (b.vintage ? ' ' + b.vintage : ''), 'Cosa vuoi fare?', [{ t: 'Apri scheda', pri: true, fn: () => openBottle(b.id) }, { t: 'Sposta', fn: () => { moving = b.id; render(); } }, { t: 'Chiudi' }]);
   }
 });
 document.addEventListener('change', (e) => {
