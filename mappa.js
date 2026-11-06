@@ -55,9 +55,9 @@ const REGIONS = [
   Z('Italia', 'Emilia-Romagna', 'Colli Bolognesi', 44.42, 11.2, ['colli bolognesi', 'pignoletto'], 'Pignoletto fermo e frizzante.'),
   Z('Italia', 'Emilia-Romagna', 'Romagna', 44.2, 11.9, ['romagna', 'albana', 'sangiovese di romagna', 'bertinoro'], 'Sangiovese di Romagna e Albana DOCG.'),
   Z('Italia', 'Toscana', 'Toscana', 43.4, 11.1, ['toscana', 'toscano', 'supertuscan', 'super tuscan', 'costa toscana'], 'Terra del Sangiovese, dal Chianti al Brunello, e dei Supertuscan.'),
-  Z('Italia', 'Toscana', 'Chianti Classico', 43.47, 11.28, ['chianti classico', 'gallo nero', 'gran selezione', 'radda', 'gaiole', 'castellina in chianti', 'panzano', 'greve'], 'DOCG tra Firenze e Siena: Sangiovese in Annata, Riserva e Gran Selezione.'),
+  Z('Italia', 'Toscana', 'Chianti Classico', 43.47, 11.28, ['chianti classico', 'gallo nero', 'gran selezione', 'radda', 'gaiole', 'castellina in chianti', 'panzano', 'greve', 'castelnuovo berardenga', 'vagliagli', 'san casciano in val di pesa', 'lamole', 'monti in chianti', 'quercegrossa'], 'DOCG tra Firenze e Siena: Sangiovese in Annata, Riserva e Gran Selezione.'),
   Z('Italia', 'Toscana', 'Chianti', 43.65, 11.45, ['chianti', 'chianti rufina', 'rufina', 'colli senesi', 'colli fiorentini', 'montalbano'], 'DOCG con sette sottozone attorno al Chianti Classico; Rufina la più fresca.'),
-  Z('Italia', 'Toscana', 'Montalcino', 43.06, 11.49, ['montalcino', 'brunello', 'sant antimo'], 'Brunello di Montalcino DOCG: Sangiovese in purezza, almeno 5 anni prima di uscire.'),
+  Z('Italia', 'Toscana', 'Montalcino', 43.06, 11.49, ['montalcino', 'brunello', 'sant antimo', 'castelnuovo dell abate', 'sant angelo in colle', 'torrenieri', 'tavernelle'], 'Brunello di Montalcino DOCG: Sangiovese in purezza, almeno 5 anni prima di uscire.'),
   Z('Italia', 'Toscana', 'Montepulciano', 43.1, 11.78, ['nobile di montepulciano', 'vino nobile', 'rosso di montepulciano'], 'Vino Nobile di Montepulciano DOCG, da Sangiovese (Prugnolo Gentile).'),
   Z('Italia', 'Toscana', 'Bolgheri', 43.23, 10.61, ['bolgheri', 'sassicaia', 'castagneto carducci'], 'Costa livornese: tagli bordolesi di Cabernet e Merlot.'),
   Z('Italia', 'Toscana', 'Maremma', 42.72, 11.15, ['maremma', 'morellino', 'scansano', 'montecucco', 'capalbio', 'pitigliano', 'sovana'], 'Morellino di Scansano, Montecucco e la Maremma toscana.'),
@@ -79,7 +79,10 @@ const REGIONS = [
   Z('Italia', 'Lazio', 'Cesanese', 41.75, 13.12, ['cesanese', 'piglio', 'olevano'], 'Cesanese del Piglio DOCG.'),
   Z('Italia', 'Lazio', 'Montefiascone', 42.54, 12.03, ['est est est', 'montefiascone'], 'Est! Est!! Est!!! sul lago di Bolsena.'),
   Z('Italia', 'Abruzzo', 'Abruzzo', 42.2, 13.9, ['abruzzo'], 'Montepulciano d’Abruzzo, Trebbiano e Cerasuolo.'),
-  Z('Italia', 'Abruzzo', 'Montepulciano d\'Abruzzo', 42.3, 14.0, ['montepulciano d abruzzo', 'colline teramane', 'cerasuolo d abruzzo'], 'Rosso generoso; il Cerasuolo è la versione rosata.'),
+  Z('Italia', 'Abruzzo', 'Montepulciano d\'Abruzzo', 42.3, 14.0, ['montepulciano d abruzzo', 'cerasuolo d abruzzo'], 'Rosso generoso; il Cerasuolo è la versione rosata.'),
+  Z('Italia', 'Abruzzo', 'Colline Teramane', 42.72, 13.83, ['colline teramane', 'torano nuovo', 'teramo', 'controguerra', 'colonnella', 'nereto', 'corropoli', 'notaresco', 'roseto degli abruzzi'], 'Montepulciano d’Abruzzo Colline Teramane DOCG, tra l’Adriatico e il Gran Sasso.'),
+  Z('Italia', 'Abruzzo', 'Colline Pescaresi', 42.42, 13.98, ['colline pescaresi', 'loreto aprutino', 'pescara', 'pianella', 'moscufo', 'rosciano', 'cugnoli', 'tocco da casauria', 'ofena', 'capestrano'], 'Le colline tra Pescara e la Majella: Loreto Aprutino e la valle del Pescara.'),
+  Z('Italia', 'Abruzzo', 'Colline Teatine', 42.2, 14.25, ['colline teatine', 'chieti', 'ortona', 'tollo', 'villamagna', 'vasto', 'lanciano'], 'La zona più vitata d’Abruzzo, in provincia di Chieti.'),
   Z('Italia', 'Abruzzo', 'Trebbiano d\'Abruzzo', 42.35, 14.15, ['trebbiano d abruzzo'], 'Bianco che nelle mani migliori invecchia a lungo.'),
   Z('Italia', 'Molise', 'Molise', 41.65, 14.6, ['molise', 'tintilia', 'biferno'], 'Tintilia, il vitigno autoctono.'),
   Z('Italia', 'Campania', 'Campania', 40.9, 14.8, ['campania'], 'Aglianico, Fiano, Greco e Falanghina: viticoltura antichissima e vulcanica.'),
@@ -117,14 +120,19 @@ const REGIONS = [
   Z('Italia', 'Sardegna', 'Oristano', 39.9, 8.6, ['vernaccia di oristano', 'oristano', 'malvasia di bosa', 'bosa'], 'Vernaccia di Oristano ossidativa e Malvasia di Bosa.'),
   // ---------- FRANCIA (regioni vinicole) ----------
   Z('Francia', '', 'Francia', 46.6, 2.4, ['francia', 'france', 'vin de france'], 'Bordeaux, Borgogna, Champagne, Rodano, Loira, Alsazia e il Sud.'),
-  Z('Francia', 'Champagne', 'Champagne', 49.05, 4.0, ['champagne', 'reims', 'epernay', 'montagne de reims', 'cote des blancs', 'vallee de la marne', 'cote des bar', 'ay', 'cramant', 'avize', 'le mesnil', 'bouzy', 'coteaux champenois'], 'Metodo classico da Chardonnay, Pinot Noir e Meunier su gessi.'),
+  Z('Francia', 'Champagne', 'Champagne', 49.05, 4.0, ['champagne', 'coteaux champenois'], 'Metodo classico da Chardonnay, Pinot Noir e Meunier su gessi.'),
+  Z('Francia', 'Champagne', 'Montagne de Reims', 49.15, 4.03, ['montagne de reims', 'petite montagne', 'reims', 'gueux', 'chamery', 'ambonnay', 'bouzy', 'verzenay', 'verzy', 'mailly champagne', 'rilly la montagne', 'ludes', 'trepail', 'villers marmery', 'sacy', 'ecueil', 'jouy les reims', 'vrigny', 'sillery', 'chigny les roses', 'villers allerand', 'louvois', 'tauxieres', 'pargny les reims', 'merfy', 'saint thierry', 'vallee de l ardre'], 'Pinot Noir soprattutto: Champagne strutturati, dai Grand Cru di Verzenay, Ambonnay e Bouzy alla Petite Montagne.'),
+  Z('Francia', 'Champagne', 'Vallée de la Marne', 49.07, 3.8, ['vallee de la marne', 'grande vallee', 'ay', 'ay champagne', 'mareuil sur ay', 'hautvillers', 'dizy', 'cumieres', 'boursault', 'chatillon sur marne', 'damery', 'venteuil', 'oeuilly', 'leuvrigny', 'festigny', 'mardeuil', 'vincelles', 'epernay', 'troissy', 'dormans', 'chateau thierry'], 'Regno del Pinot Meunier lungo il fiume; ad Aÿ e Mareuil grandi Pinot Noir.'),
+  Z('Francia', 'Champagne', 'Côte des Blancs', 48.97, 4.0, ['cote des blancs', 'avize', 'cramant', 'oger', 'le mesnil', 'mesnil sur oger', 'chouilly', 'vertus', 'cuis', 'grauves', 'oiry', 'bergeres les vertus', 'pierry', 'moussy', 'monthelon'], 'Chardonnay su gesso: Blanc de Blancs tesi e longevi da Avize, Cramant, Oger e Le Mesnil.'),
+  Z('Francia', 'Champagne', 'Côte de Sézanne', 48.72, 3.72, ['cote de sezanne', 'sezanne', 'barbonne fayel', 'vindey', 'bethon'], 'Chardonnay più morbido e maturo, a sud della Côte des Blancs.'),
+  Z('Francia', 'Champagne', 'Côte des Bar', 48.1, 4.4, ['cote des bar', 'aube', 'bar sur seine', 'bar sur aube', 'riceys', 'les riceys', 'rose des riceys', 'celles sur ource', 'buxieres sur arce', 'buxieres', 'urville', 'gye sur seine', 'polisot', 'landreville', 'courteron', 'essoyes', 'loches sur ource', 'baroville', 'montgueux', 'neuville sur seine', 'merrey sur arce'], 'Aube, su marne kimmeridgiane come Chablis: Pinot Noir e molti vigneron indipendenti.'),
   Z('Francia', 'Alsazia', 'Alsazia', 48.15, 7.3, ['alsace', 'alsazia', 'cremant d alsace'], 'Riesling, Gewurztraminer, Pinot Gris e Muscat; 51 Grand Cru.'),
-  Z('Francia', 'Borgogna', 'Borgogna', 47.0, 4.7, ['bourgogne', 'borgogna', 'burgundy', 'cremant de bourgogne', 'hautes cotes'], 'Pinot Noir e Chardonnay; il concetto di climat e cru.'),
+  Z('Francia', 'Borgogna', 'Borgogna', 47.0, 4.7, ['bourgogne', 'borgogna', 'burgundy', 'cremant de bourgogne', 'cote d or', 'aligote', 'passetoutgrain'], 'Pinot Noir e Chardonnay; il concetto di climat e cru.'),
   Z('Francia', 'Borgogna', 'Chablis', 47.81, 3.8, ['chablis'], 'Chardonnay su marne kimmeridgiane: teso e minerale.'),
-  Z('Francia', 'Borgogna', 'Côte de Nuits', 47.18, 4.97, ['cote de nuits', 'gevrey', 'chambertin', 'vosne', 'romanee', 'nuits saint georges', 'morey', 'chambolle', 'musigny', 'vougeot', 'marsannay', 'fixin', 'echezeaux', 'clos de tart', 'la tache'], 'Il cuore del Pinot Noir: Gevrey, Chambolle, Vosne-Romanée.'),
-  Z('Francia', 'Borgogna', 'Côte de Beaune', 47.0, 4.78, ['cote de beaune', 'beaune', 'pommard', 'volnay', 'meursault', 'puligny', 'chassagne', 'montrachet', 'corton', 'aloxe', 'savigny', 'santenay', 'saint aubin', 'auxey', 'monthelie', 'pernand', 'ladoix', 'saint romain'], 'Grandi bianchi (Meursault, Montrachet) e rossi (Pommard, Volnay, Corton).'),
+  Z('Francia', 'Borgogna', 'Côte de Nuits', 47.18, 4.97, ['cote de nuits', 'gevrey', 'chambertin', 'vosne', 'romanee', 'nuits saint georges', 'morey', 'chambolle', 'musigny', 'vougeot', 'marsannay', 'fixin', 'echezeaux', 'clos de tart', 'la tache', 'hautes cotes de nuits', 'coteaux de dijon', 'dijon', 'chenove', 'couchey', 'brochon', 'premeaux', 'comblanchien', 'corgoloin', 'flagey', 'concoeur', 'villars fontaine', 'arcenant'], 'Il cuore del Pinot Noir: Gevrey, Chambolle, Vosne-Romanée.'),
+  Z('Francia', 'Borgogna', 'Côte de Beaune', 47.0, 4.78, ['hautes cotes de beaune', 'chorey', 'nantoux', 'meloisey', 'fussey', 'mavilly', 'bouze les beaune', 'saint romain', 'maranges', 'cheilly', 'dezize', 'sampigny', 'echevronne', 'baubigny', 'la rochepot', 'nolay', 'cote de beaune', 'beaune', 'pommard', 'volnay', 'meursault', 'puligny', 'chassagne', 'montrachet', 'corton', 'aloxe', 'savigny', 'santenay', 'saint aubin', 'auxey', 'monthelie', 'pernand', 'ladoix', 'saint romain'], 'Grandi bianchi (Meursault, Montrachet) e rossi (Pommard, Volnay, Corton).'),
   Z('Francia', 'Borgogna', 'Côte Chalonnaise', 46.78, 4.7, ['mercurey', 'givry', 'rully', 'montagny', 'bouzeron', 'chalonnaise'], 'Rully, Mercurey e Givry: Borgogna più accessibile.'),
-  Z('Francia', 'Borgogna', 'Mâconnais', 46.3, 4.78, ['macon', 'maconnais', 'pouilly fuisse', 'saint veran', 'vire clesse', 'pouilly vinzelles'], 'Chardonnay del sud: Pouilly-Fuissé e Saint-Véran.'),
+  Z('Francia', 'Borgogna', 'Mâconnais', 46.3, 4.78, ['macon', 'maconnais', 'pouilly fuisse', 'saint veran', 'vire clesse', 'pouilly vinzelles', 'vinzelles', 'fuisse', 'solutre', 'davaye', 'prisse', 'lugny', 'clesse', 'vire', 'pierreclos', 'bussieres'], 'Chardonnay del sud: Pouilly-Fuissé e Saint-Véran.'),
   Z('Francia', 'Beaujolais', 'Beaujolais', 46.15, 4.65, ['beaujolais', 'morgon', 'fleurie', 'moulin a vent', 'brouilly', 'julienas', 'chenas', 'chiroubles', 'regnie', 'saint amour', 'cote de brouilly'], 'Gamay su graniti; dieci cru come Morgon, Fleurie e Moulin-à-Vent.'),
   Z('Francia', 'Valle del Rodano', 'Valle del Rodano', 44.6, 4.8, ['cotes du rhone', 'cote du rhone', 'rhone', 'rodano', 'ventoux', 'luberon', 'costieres de nimes'], 'Syrah al nord, Grenache e assemblaggi al sud.'),
   Z('Francia', 'Valle del Rodano', 'Côte-Rôtie e Condrieu', 45.47, 4.8, ['cote rotie', 'condrieu', 'chateau grillet'], 'Syrah sui pendii della Côte-Rôtie, Viognier a Condrieu.'),
@@ -132,7 +140,7 @@ const REGIONS = [
   Z('Francia', 'Valle del Rodano', 'Châteauneuf-du-Pape', 44.06, 4.83, ['chateauneuf', 'gigondas', 'vacqueyras', 'lirac', 'tavel', 'rasteau', 'cairanne', 'vinsobres', 'beaumes de venise'], 'Grenache, Syrah e Mourvèdre su ciottoli: Châteauneuf, Gigondas, Vacqueyras.'),
   Z('Francia', 'Valle della Loira', 'Valle della Loira', 47.3, 0.5, ['loire', 'loira', 'val de loire', 'cremant de loire'], 'Chenin, Sauvignon, Cabernet Franc e Muscadet lungo il fiume.'),
   Z('Francia', 'Valle della Loira', 'Muscadet', 47.15, -1.4, ['muscadet'], 'Melon de Bourgogne sur lie vicino all’Atlantico.'),
-  Z('Francia', 'Valle della Loira', 'Anjou e Saumur', 47.3, -0.4, ['anjou', 'saumur', 'savennieres', 'coteaux du layon', 'bonnezeaux', 'quarts de chaume'], 'Chenin secco e dolce, Cabernet Franc di Saumur-Champigny.'),
+  Z('Francia', 'Valle della Loira', 'Anjou e Saumur', 47.3, -0.4, ['anjou', 'saumur', 'savennieres', 'coteaux du layon', 'layon', 'bonnezeaux', 'quarts de chaume', 'anjou noir', 'beaulieu sur layon', 'thouarce', 'martigne briand', 'faye d anjou', 'rablay sur layon', 'saint lambert du lattay', 'rochefort sur loire', 'chaudefonds', 'montbenault', 'brissac', 'aubance', 'maine et loire', 'saint aubin de luigne', 'chalonnes', 'champigny', 'breze'], 'Chenin secco e dolce, Cabernet Franc di Saumur-Champigny.'),
   Z('Francia', 'Valle della Loira', 'Touraine', 47.3, 0.6, ['touraine', 'vouvray', 'chinon', 'bourgueil', 'montlouis'], 'Vouvray e Montlouis (Chenin), Chinon e Bourgueil (Cabernet Franc).'),
   Z('Francia', 'Valle della Loira', 'Sancerre e Pouilly', 47.3, 2.88, ['sancerre', 'pouilly fume', 'menetou', 'quincy', 'reuilly'], 'Sauvignon Blanc su selce e calcare.'),
   Z('Francia', 'Bordeaux', 'Bordeaux', 44.84, -0.58, ['bordeaux', 'bordeaux superieur', 'cotes de bordeaux', 'blaye', 'bourg'], 'Tagli di Cabernet e Merlot; i grandi Château.'),
@@ -141,17 +149,22 @@ const REGIONS = [
   Z('Francia', 'Bordeaux', 'Sauternes', 44.53, -0.34, ['sauternes', 'barsac'], 'Bianchi dolci da uve con muffa nobile.'),
   Z('Francia', 'Bordeaux', 'Saint-Émilion e Pomerol', 44.9, -0.17, ['saint emilion', 'pomerol', 'fronsac', 'lalande', 'castillon'], 'Riva destra: Merlot e Cabernet Franc.'),
   Z('Francia', 'Bordeaux', 'Entre-Deux-Mers', 44.75, -0.3, ['entre deux mers'], 'Bianchi freschi tra Garonna e Dordogna.'),
-  Z('Francia', 'Sud-Ovest', 'Sud-Ovest', 44.0, 0.8, ['sud ouest', 'sud ovest', 'irouleguy', 'marcillac', 'cotes de gascogne', 'gascogne'], 'Malbec, Tannat e uve antiche della Guascogna.'),
+  Z('Francia', 'Sud-Ovest', 'Sud-Ovest', 44.0, 0.8, ['sud ouest', 'sud ovest', 'irouleguy', 'marcillac', 'fronton', 'entraygues', 'estaing'], 'Malbec, Tannat e uve antiche della Guascogna.'),
   Z('Francia', 'Sud-Ovest', 'Cahors', 44.45, 1.44, ['cahors'], 'Malbec scuro e tannico.'),
   Z('Francia', 'Sud-Ovest', 'Madiran', 43.55, -0.05, ['madiran', 'pacherenc'], 'Tannat potente.'),
-  Z('Francia', 'Sud-Ovest', 'Jurançon', 43.3, -0.4, ['jurancon'], 'Petit e Gros Manseng, secco e dolce.'),
+  Z('Francia', 'Sud-Ovest', 'Jurançon e Béarn', 43.27, -0.42, ['jurancon', 'bearn', 'gan', 'monein', 'lahourcade', 'cuqueron', 'saint faust', 'lasseube', 'aubertin', 'chapelle de rousse', 'pyrenees atlantiques', 'pirenei atlantici'], 'Petit e Gros Manseng, secco e dolce.'),
+  Z('Francia', 'Sud-Ovest', 'Guascogna', 43.82, 0.25, ['gascogne', 'cotes de gascogne', 'guascogna', 'gers', 'courrensan', 'eauze', 'condom', 'saint mont', 'tursan', 'armagnac', 'floc de gascogne', 'vic fezensac', 'plaimont', 'tarn et garonne', 'brulhois'], 'Colombard, Gros Manseng e uve antiche del Gers; Saint-Mont e Tursan.'),
   Z('Francia', 'Sud-Ovest', 'Bergerac', 44.85, 0.48, ['bergerac', 'monbazillac', 'pecharmant'], 'Tagli bordolesi e il dolce Monbazillac.'),
   Z('Francia', 'Sud-Ovest', 'Gaillac', 43.9, 1.9, ['gaillac'], 'Vitigni rari come Mauzac, Braucol e Len de l’El.'),
   Z('Francia', 'Linguadoca-Rossiglione', 'Linguadoca-Rossiglione', 43.3, 3.0, ['languedoc', 'roussillon', 'pays d oc', 'igp oc'], 'Grenache, Syrah, Carignan e Mourvèdre del Midi.'),
   Z('Francia', 'Linguadoca-Rossiglione', 'Languedoc', 43.55, 3.5, ['pic saint loup', 'faugeres', 'saint chinian', 'minervois', 'corbieres', 'terrasses du larzac', 'la clape', 'picpoul', 'limoux', 'fitou'], 'Pic Saint-Loup, Terrasses du Larzac, Minervois, Corbières.'),
   Z('Francia', 'Linguadoca-Rossiglione', 'Roussillon', 42.65, 2.8, ['banyuls', 'collioure', 'maury', 'rivesaltes', 'cotes catalanes', 'cotes du roussillon'], 'Rossi del sud e i dolci naturali di Banyuls e Maury.'),
   Z('Francia', 'Provenza', 'Provenza', 43.45, 6.1, ['provence', 'provenza', 'cotes de provence', 'bandol', 'cassis', 'palette', 'bellet', 'coteaux d aix', 'baux de provence'], 'Rosati, Mourvèdre di Bandol e i bianchi di Cassis.'),
-  Z('Francia', 'Jura', 'Jura', 46.75, 5.7, ['jura', 'arbois', 'vin jaune', 'chateau chalon', 'l etoile', 'cotes du jura'], 'Savagnin, Vin Jaune sotto velo, Poulsard e Trousseau.'),
+  Z('Francia', 'Jura', 'Jura', 46.75, 5.7, ['jura', 'cotes du jura', 'vin jaune', 'macvin', 'cremant du jura', 'giura'], 'Savagnin, Vin Jaune sotto velo, Poulsard e Trousseau.'),
+  Z('Francia', 'Jura', 'Arbois', 46.9, 5.77, ['arbois', 'pupillin', 'arbois pupillin', 'montigny les arsures', 'les arsures', 'mesnay', 'les planches pres arbois', 'villette les arbois', 'mathenay', 'liesle', 'port lesney', 'salins'], 'Il nord del Jura: Poulsard e Trousseau, Savagnin e Chardonnay; Pupillin la capitale del Ploussard.'),
+  Z('Francia', 'Jura', 'Château-Chalon e Centro', 46.75, 5.63, ['chateau chalon', 'voiteur', 'passenans', 'menetru', 'menetru le vignoble', 'nevy sur seille', 'poligny', 'domblans', 'le vernois', 'blandans', 'frontenay', 'lavigny', 'montain', 'saint lothain', 'plasne', 'mantry'], 'Il cuore del Vin Jaune: falesie di marne grigie attorno a Château-Chalon, Poligny e la valle della Seille.'),
+  Z('Francia', 'Jura', 'L\'Étoile', 46.67, 5.54, ['l etoile', 'etoile', 'quintigny', 'saint didier'], 'Piccola AOC di bianchi da Chardonnay e Savagnin sui fossili a forma di stella.'),
+  Z('Francia', 'Jura', 'Sud Revermont', 46.56, 5.44, ['sud revermont', 'revermont', 'rotalier', 'gevingey', 'cesancey', 'orbagna', 'beaufort', 'grusse', 'vincelles jura', 'sainte agnes', 'maynal', 'cousance', 'la combe de rotalier', 'trenal', 'vernantois', 'lons le saunier', 'chazelles', 'saint amour jura', 'cuisia', 'gizia', 'augea', 'conliege', 'perrigny'], 'Il sud del Jura attorno a Lons-le-Saunier: Chardonnay e Savagnin su marne del Lias, terra di vignaioli come Ganevat e Labet.'),
   Z('Francia', 'Savoia', 'Savoia', 45.55, 6.0, ['savoie', 'savoia', 'apremont', 'chignin', 'roussette', 'mondeuse', 'jacquere'], 'Jacquère, Altesse e Mondeuse alpini.'),
   Z('Francia', 'Corsica', 'Corsica', 42.15, 9.1, ['corse', 'corsica', 'patrimonio', 'ajaccio', 'sciaccarellu', 'niellucciu'], 'Niellucciu, Sciaccarellu e Vermentinu.'),
   // ---------- ALTRI PAESI ----------
@@ -165,6 +178,7 @@ const REGIONS = [
   Z('Spagna', '', 'Priorat', 41.2, 0.8, ['priorat', 'montsant'], 'Garnacha e Cariñena su ardesia (llicorella).'),
   Z('Spagna', '', 'Penedès', 41.35, 1.7, ['penedes', 'cava', 'corpinnat', 'classic penedes'], 'Patria del Cava e del Corpinnat.'),
   Z('Spagna', '', 'Jerez', 36.68, -6.13, ['jerez', 'sherry', 'xeres', 'manzanilla', 'fino', 'amontillado', 'oloroso', 'palo cortado', 'pedro ximenez'], 'Vini fortificati: Fino, Manzanilla, Amontillado, Oloroso.'),
+  Z('Spagna', '', 'Maiorca', 39.62, 2.95, ['mallorca', 'maiorca', 'illes balears', 'isole baleari', 'baleari', 'binissalem', 'pla i llevant', 'manto negro', 'callet', 'santa margalida', 'felanitx', 'porreres'], 'Manto Negro, Callet e Prensal Blanc: vini mediterranei di Binissalem e Pla i Llevant.'),
   Z('Portogallo', '', 'Portogallo', 39.6, -8.0, ['portogallo', 'portugal'], 'Porto, Douro, Vinho Verde, Alentejo e Madeira.'),
   Z('Portogallo', '', 'Douro', 41.16, -7.6, ['douro', 'porto', 'port'], 'Rossi del Douro e Porto fortificato.'),
   Z('Portogallo', '', 'Vinho Verde', 41.7, -8.4, ['vinho verde', 'alvarinho', 'loureiro'], 'Bianchi freschi, leggermente frizzanti.'),
@@ -182,7 +196,8 @@ const REGIONS = [
   Z('Austria', '', 'Austria', 47.6, 14.5, ['austria', 'osterreich'], 'Grüner Veltliner, Riesling e rossi da Blaufränkisch.'),
   Z('Austria', '', 'Wachau', 48.36, 15.42, ['wachau', 'kamptal', 'kremstal', 'smaragd', 'federspiel'], 'Grüner Veltliner e Riesling sul Danubio.'),
   Z('Austria', '', 'Burgenland', 47.75, 16.75, ['burgenland', 'neusiedlersee', 'blaufrankisch', 'ruster ausbruch'], 'Blaufränkisch e dolci botritizzati.'),
-  Z('Austria', '', 'Steiermark', 46.75, 15.55, ['steiermark', 'stiria'], 'Sauvignon Blanc della Stiria.'),
+  Z('Austria', '', 'Steiermark', 46.75, 15.55, ['steiermark', 'stiria', 'sudsteiermark', 'sud steiermark', 'sudoststeiermark', 'vulkanland', 'weststeiermark', 'schilcher', 'leutschach', 'gamlitz', 'kitzeck'], 'Sauvignon Blanc della Stiria.'),
+  Z('Belgio', '', 'Belgio', 50.6, 4.6, ['belgio', 'belgique', 'belgium', 'bruxelles', 'wallonie'], 'Piccola produzione di vino; a Bruxelles i lambic a fermentazione spontanea.'),
   Z('Svizzera', '', 'Svizzera', 46.6, 7.8, ['svizzera', 'suisse', 'vallese', 'valais', 'vaud', 'lavaux', 'chasselas'], 'Chasselas, Petite Arvine e Pinot Noir.'),
   Z('Slovenia', '', 'Slovenia', 46.0, 13.6, ['slovenia', 'brda', 'vipava'], 'Brda e Vipava, oltre il confine del Collio.'),
   Z('Croazia', '', 'Croazia', 45.2, 13.9, ['croazia', 'istria', 'malvazija', 'teran', 'plavac'], 'Malvazija istriana, Teran e Plavac Mali.'),
@@ -220,10 +235,92 @@ function matchRegion(text) {
   }));
   return best;
 }
+// Dove lavorano i produttori (comune o zona): serve quando la zona in scheda è generica («Champagne», «Jura»).
+// Vale solo se coerente con la regione scritta in scheda.
+const PROD_LOC = [
+  // Champagne
+  ['roses de jeanne', 'celles sur ource'], ['cedric bouchard', 'celles sur ource'], ['etienne calsac', 'avize'], ['calsac', 'avize'],
+  ['thomas perseval', 'chamery'], ['perseval', 'chamery'], ['vouette', 'buxieres sur arce'], ['jerome prevost', 'gueux'], ['la closerie', 'gueux'],
+  ['petit collino', 'avize'], ['caze thibaut', 'chatillon sur marne'], ['lemaire', 'boursault'], ['romain henin', 'ay'], ['paul gosset', 'ay'],
+  ['selosse', 'avize'], ['agrapart', 'avize'], ['de sousa', 'avize'], ['larmandier bernier', 'vertus'], ['pierre peters', 'le mesnil'], ['ulysse collin', 'congy sezanne'],
+  ['egly ouriet', 'ambonnay'], ['marie noelle ledru', 'ambonnay'], ['benoit lahaye', 'bouzy'], ['vilmart', 'rilly la montagne'], ['chartogne taillet', 'merfy'],
+  ['savart', 'ecueil'], ['bereche', 'ludes'], ['georges laval', 'cumieres'], ['francoise bedel', 'crouttes sur marne vallee de la marne'], ['tarlant', 'oeuilly'],
+  ['laherte', 'chavot cote des blancs'], ['bouchard', ''], ['marguet', 'ambonnay'], ['drappier', 'urville'], ['fleury', 'courteron'], ['olivier horiot', 'les riceys'],
+  ['jacques lassaigne', 'montgueux'], ['bertrand gautherot', 'buxieres sur arce'], ['ruppert leroy', 'essoyes'], ['val frison', 'ville sur arce cote des bar'],
+  ['jacquesson', 'dizy'], ['bollinger', 'ay'], ['krug', 'reims'], ['dom perignon', 'hautvillers'], ['moet', 'epernay'], ['pol roger', 'epernay'], ['ruinart', 'reims'],
+  ['veuve clicquot', 'reims'], ['taittinger', 'reims'], ['louis roederer', 'reims'], ['billecart', 'mareuil sur ay'], ['philipponnat', 'mareuil sur ay'], ['gosset', 'ay'],
+  ['emmanuel brochet', 'villers aux noeuds montagne de reims'], ['david leclapart', 'trepail'], ['pascal agrapart', 'avize'], ['doyard', 'vertus'], ['pierre gerbais', 'celles sur ource'],
+  // Jura
+  ['labet', 'rotalier'], ['ganevat', 'rotalier'], ['buronfosse', 'rotalier'], ['nicolas jacob', 'cesancey'], ['guadagnolo', 'orbagna'], ['les dolomies', 'passenans'],
+  ['bruyere houillon', 'pupillin'], ['houillon', 'pupillin'], ['overnoy', 'pupillin'], ['gahier', 'montigny les arsures'], ['cavarodes', 'liesle'], ['tissot', 'arbois'],
+  ['puffeney', 'montigny les arsures'], ['bornard', 'pupillin'], ['renardieres', 'pupillin'], ['macle', 'chateau chalon'], ['berthet bondet', 'chateau chalon'],
+  ['jean francois ganevat', 'rotalier'], ['anne et jean francois ganevat', 'rotalier'], ['pignier', 'montaigu revermont'], ['julien labet', 'rotalier'], ['peggy buronfosse', 'rotalier'],
+  ['octavin', 'arbois'], ['dugois', 'les arsures'], ['ratapoil', 'arbois'], ['montbourgeau', 'l etoile'], ['philippe chatillon', 'poligny'], ['tony bornard', 'pupillin'],
+  ['valentin morel', 'poligny'], ['les bottes rouges', 'montigny les arsures'], ['kenjiro kagami', 'arbois'], ['domaine de la pinte', 'arbois'], ['rolet', 'arbois'],
+  // Borgogna
+  ['maldant', 'chorey'], ['de la cras', 'dijon'], ['mikulski', 'meursault'], ['chantereves', 'savigny'], ['dandelion', 'hautes cotes de beaune'], ['glandien', 'meursault'],
+  ['rougeot', 'meursault'], ['du grappin', 'beaune'], ['soufrandiere', 'vinzelles'], ['bret brothers', 'vinzelles'],
+  // Loira e Sud-Ovest
+  ['sansonniere', 'thouarce'], ['bernaudeau', 'martigne briand'], ['breteches', 'beaulieu sur layon'], ['lalanne', 'faye d anjou'], ['bonnezeaux', 'thouarce'], ['dufour', 'layon'],
+  ['larrouyat', 'gan'], ['semmartin', 'jurancon'], ['florent foury', 'saint faust'], ['sebastien comte', 'jurancon'], ['jeandauge', 'courrensan'],
+  // Italia
+  ['emidio pepe', 'torano nuovo'], ['valentini', 'loreto aprutino'], ['le ripi', 'montalcino'], ['toru oikawa', 'castelnuovo berardenga'], ['cocito', 'barbaresco'],
+  ['giuseppe rinaldi', 'barolo'], ['rinaldi giuseppe', 'barolo'], ['lungarotti', 'torgiano'],
+  // altri
+  ['sistema vinari', 'mallorca'], ['werlitsch', 'leutschach'], ['cantillon', 'bruxelles'],
+];
+const normT = (t) => nrm(t).replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+function prodHint(p) { const t = ' ' + normT(p) + ' '; const h = PROD_LOC.find(([k, v]) => v && t.includes(' ' + k + ' ')); return h ? h[1] : ''; }
+// strict: nei testi lunghi (note sul produttore) se compaiono più zone diverse non scelgo.
+function matchIn(text, ok, strict) {
+  const t = normT(text);
+  if (!t) return -1;
+  let best = -1, lvl = -1, len = 0;
+  const hit = new Set();
+  REG_RX.forEach((ks, i) => { if (!ok(i)) return; ks.forEach((x) => {
+    if (!x.rx.test(t)) return;
+    const l = regLevel(REGIONS[i]);
+    if (l === 2) hit.add(i);
+    if (l > lvl || (l === lvl && x.k.length > len)) { best = i; lvl = l; len = x.k.length; }
+  }); });
+  return strict && hit.size > 1 ? -1 : best;
+}
+// Zona di una bottiglia: scelta a mano, poi la zona scritta in scheda, resa più precisa con produttore, cuvée e note.
+const zoneCache = new WeakMap();
+function zoneIdx(b) {
+  if (!b) return -1;
+  const key = [b.zone, b.region, b.producer, b.cuvee].join('|');
+  const c = zoneCache.get(b);
+  if (c && c.key === key) return c.i;
+  const i = zoneCalc(b);
+  zoneCache.set(b, { key, i });
+  return i;
+}
+function zoneCalc(b) {
+  if (b.zone) { const i = REGIONS.findIndex((r) => r.n === b.zone); if (i >= 0) return i; }
+  const r = matchRegion(b.region);
+  if (r >= 0 && regLevel(REGIONS[r]) === 2) return r;
+  const R = r >= 0 ? REGIONS[r] : null, lR = R ? regLevel(R) : -1;
+  const ok = (i) => { const x = REGIONS[i]; return regLevel(x) > lR && (!R || (x.p === R.p && (lR === 0 || x.g === R.g))); };
+  for (const [t, st] of [[prodHint(b.producer)], [b.cuvee], [R ? b.info : '', 1], [R ? b.winfo : '', 1]]) { const i = matchIn(t, ok, st); if (i >= 0) return i; }
+  if (r < 0) {
+    for (const t of [b.info, b.winfo]) { const i = matchIn(t, (j) => regLevel(REGIONS[j]) >= 1, 1); if (i >= 0) return i; }
+  }
+  return r;
+}
+// Elenco delle zone per scegliere a mano dove va una bottiglia sulla mappa
+function zoneOpts(b) {
+  const ai = zoneCalc({ ...b, zone: '' });
+  let h = `<option value="">Automatica: ${esc(ai >= 0 ? REGIONS[ai].n : 'non riconosciuta')}</option>`;
+  const groups = new Map();
+  REGIONS.forEach((r) => { const k = r.p + (r.g ? ' · ' + r.g : ''); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+  groups.forEach((rs, k) => { h += `<optgroup label="${esc(k)}">` + rs.map((r) => `<option value="${esc(r.n)}" ${b.zone === r.n ? 'selected' : ''}>${esc(regLevel(r) < 2 ? r.n + ' (generico)' : r.n)}</option>`).join('') + '</optgroup>'; });
+  return h;
+}
 function regionGroups() {
   const g = new Map(), un = [];
   Object.values(S.bottles).filter((b) => inCellar(b)).forEach((b) => {
-    const i = matchRegion(b.region);
+    const i = zoneIdx(b);
     if (i < 0) un.push(b); else { if (!g.has(i)) g.set(i, []); g.get(i).push(b); }
   });
   return { g, un };
@@ -290,8 +387,27 @@ function projector(b, W, H, pad) {
   const ox = (W - w * s) / 2, oy = (H - h * s) / 2;
   return ([x, y]) => [ox + (x - x0) * k * s, oy + (y1 - y) * s];
 }
-function pathOf(rings, P) {
-  return rings.map((r) => 'M' + r.map((p) => P(p).map((v) => v.toFixed(1)).join(',')).join('L') + 'Z').join('');
+// Contorni semplificati sullo schermo: linee più pulite, aspetto da cartina disegnata
+function simp(q, tol) {
+  if (q.length < 5) return q;
+  const keep = new Uint8Array(q.length); keep[0] = keep[q.length - 1] = 1;
+  const st = [[0, q.length - 1]];
+  while (st.length) {
+    const [a, b] = st.pop(); const [ax, ay] = q[a], [bx, by] = q[b]; const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy);
+    let best = -1, bi = -1;
+    for (let i = a + 1; i < b; i++) { const [px, py] = q[i]; const d = L > 1e-6 ? Math.abs(dy * px - dx * py + bx * ay - by * ax) / L : Math.hypot(px - ax, py - ay); if (d > best) { best = d; bi = i; } }
+    if (best > tol) { keep[bi] = 1; st.push([a, bi], [bi, b]); }
+  }
+  return q.filter((_, i) => keep[i]);
+}
+function pathOf(rings, P, tol) {
+  return rings.map((r) => {
+    let q = r.map(P); q = simp(q, tol || 1.6);
+    if (q.length < 3) return '';
+    let A = 0; for (let i = 0; i < q.length - 1; i++) A += q[i][0] * q[i + 1][1] - q[i + 1][0] * q[i][1];
+    if (Math.abs(A) / 2 < 6) return '';
+    return 'M' + q.map((p) => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L') + 'Z';
+  }).join('');
 }
 function shade(n, max) { if (!n) return ''; const t = Math.min(1, 0.35 + 0.65 * (n / Math.max(1, max))); return `fill-opacity:${t.toFixed(2)}`; }
 
@@ -346,7 +462,7 @@ function mapPanel(zones, un) {
     const by = new Map();
     zones.forEach((z) => by.set(z.r.p, (by.get(z.r.p) || 0) + z.bs.length));
     return '<h3 class="letter">Paesi</h3>' + areaRows([...by.entries()].map(([p, n]) => ({ a: 'mgo', attr: `data-p="${esc(p)}"`, t: p, n })))
-      + (un.length ? `<h3 class="letter">Zona non riconosciuta</h3><p class="info">${un.length} ${un.length === 1 ? 'bottiglia' : 'bottiglie'} con una zona che non conosco: scrivi nella scheda la denominazione (per esempio «Chianti Classico» o «Pauillac») e comparirà qui.</p>` + bottleRows(un) : '');
+      + (un.length ? `<h3 class="letter">Zona non riconosciuta</h3><p class="info">${un.length} ${un.length === 1 ? 'bottiglia' : 'bottiglie'} con una zona che non conosco: apri la scheda e scegli la zona in «Sulla mappa», oppure scrivi la denominazione (per esempio «Chianti Classico» o «Pauillac»).</p>` + bottleRows(un) : '');
   }
   const inP = zones.filter((z) => z.r.p === P);
   const cz = REGIONS.find((r) => r.n === P && r.p === P);
@@ -361,7 +477,7 @@ function mapPanel(zones, un) {
       h += '<h3 class="letter">Zone</h3>' + areaRows(inP.filter((z) => regLevel(z.r) > 0).map((z) => ({ a: 'mzone', attr: `data-i="${z.i}"`, t: z.r.n, n: z.bs.length })));
     }
     const gen = inP.filter((z) => regLevel(z.r) === 0).flatMap((z) => z.bs);
-    if (gen.length) h += `<h3 class="letter">Senza zona precisa</h3>` + bottleRows(gen);
+    if (gen.length) h += `<h3 class="letter">Senza zona precisa</h3><p class="info">Per collocarle con precisione apri la scheda e scegli la zona in «Sulla mappa».</p>` + bottleRows(gen);
     return h;
   }
   const inG = inP.filter((z) => z.r.g === G);
@@ -370,7 +486,7 @@ function mapPanel(zones, un) {
   const den = inG.filter((z) => regLevel(z.r) === 2);
   if (den.length) h += '<h3 class="letter">Denominazioni</h3>' + areaRows(den.map((z) => ({ a: 'mzone', attr: `data-i="${z.i}"`, t: z.r.n, s: subOf(z.i), n: z.bs.length })));
   const gen = inG.filter((z) => regLevel(z.r) === 1).flatMap((z) => z.bs);
-  if (gen.length) h += `<h3 class="letter">${esc(G)} generico</h3>` + bottleRows(gen);
+  if (gen.length) h += `<h3 class="letter">${esc(G)} generico</h3><p class="info">Per collocarle con precisione apri la scheda e scegli la zona in «Sulla mappa».</p>` + bottleRows(gen);
   return h;
 }
 
@@ -443,6 +559,7 @@ async function initMap() {
     subs.forEach((s) => { const n = cnt.get(s.n), sel = mPick && mPick.kind === 's' && mPick.n === s.n; out += `<path class="mland${n ? ' on' : ' base'}${sel ? ' sel' : ''}" data-a="msub" data-n="${esc(s.n)}" style="${shade(n, max)}" d="${pathOf(s.r, Pj)}"/>`; });
     subs.forEach((s) => { const bb = bbox([s.r]); out += label(s.n, Pj([(bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2]), 'sub'); });
     REGIONS.forEach((r, i) => { if (r.p !== P || r.g !== G || regLevel(r) !== 2) return; const z = inG.find((x) => x.i === i); out += dot(i, Pj, !!z, z ? z.bs.length : 0); });
+    inG.filter((z) => regLevel(z.r) === 2).forEach((z) => { out += label(z.r.n, ((p) => [p[0], p[1] - 14 - Math.min(8, z.bs.length)])(Pj([z.r.lo, z.r.la])), 'on'); });
   } else {
     // PAESE senza suddivisioni: contorno del paese e zone come punti
     const c = GEO.world.find((x) => x.n === P);
@@ -456,7 +573,8 @@ async function initMap() {
   }
   const pn = document.getElementById('mpanel'); if (pn) { const d = mapData(); pn.innerHTML = mapPanel(d.zones, d.un); }
   el.style.aspectRatio = W + '/' + H;
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cartina: ${esc(mPath.join(' › ') || 'Mondo')}"><rect class="msea" width="${W}" height="${H}"/>${out}</svg>`;
+  const back = mPath.length || mPick ? '<button class="mback over" data-a="mback" aria-label="Indietro"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>' : '';
+  el.innerHTML = back + `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Cartina: ${esc(mPath.join(' › ') || 'Mondo')}"><rect class="msea" width="${W}" height="${H}"/>${out}</svg>`;
 }
 
 function mapGo(next, pick) {
@@ -471,6 +589,7 @@ document.addEventListener('click', (e) => {
   if (!t || tab !== 'mappa') return;
   const a = t.dataset.a;
   if (a === 'mup') mapGo(mPath.slice(0, +t.dataset.k));
+  else if (a === 'mback') mapGo(mPick ? mPath : mPath.slice(0, -1));
   else if (a === 'mgo' && t.dataset.p) mapGo([t.dataset.p]);
   else if (a === 'mgo' && t.dataset.g) mapGo([mPath[0], t.dataset.g]);
   else if (a === 'msub') mapGo(mPath, mPick && mPick.kind === 's' && mPick.n === t.dataset.n ? null : { kind: 's', n: t.dataset.n });

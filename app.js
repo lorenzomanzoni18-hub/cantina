@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '50';
+const APP_VERSION = '51';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -107,6 +107,8 @@ function applyTheme(t) {
   const cs = document.querySelector('meta[name="color-scheme"]'); if (cs) cs.content = t;
 }
 applyTheme(themeNow());
+// iPhone: dopo la tastiera le barre fisse possono restare spostate; un piccolo scroll le rimette a posto
+document.addEventListener('focusout', () => setTimeout(() => { const el = document.activeElement; if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) window.scrollTo(window.scrollX, window.scrollY); }, 60));
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
@@ -431,7 +433,7 @@ const widOf = (b) => b.wid || b.id;
 function siblings(b) { const w = widOf(b); return Object.values(S.bottles).filter((x) => x.id !== b.id && widOf(x) === w); }
 function groupOf(b) { const w = widOf(b); return Object.values(S.bottles).filter((x) => widOf(x) === w); }
 const uniqW = (arr) => { const seen = new Set(); return arr.filter((b) => { const w = widOf(b); if (seen.has(w)) return false; seen.add(w); return true; }); };
-const SHARED = ['producer', 'cuvee', 'vintage', 'type', 'size', 'region', 'price', 'value', 'valueAuto', 'valueNote', 'drink', 'drinkFrom', 'drinkTo', 'pairing', 'info', 'winfo', 'vinfo', 'prod', 'srcLinks', 'touched', 'thumb', 'useFull', 'barcode', 'aiAt', 'aiDeep', 'buyDate', 'buyWhere', 'buyNote', 'tags', 'tastings', 'grapes', 'abv', 'lot', 'disg', 'dosage'];
+const SHARED = ['producer', 'cuvee', 'vintage', 'type', 'size', 'region', 'zone', 'price', 'value', 'valueAuto', 'valueNote', 'drink', 'drinkFrom', 'drinkTo', 'pairing', 'info', 'winfo', 'vinfo', 'prod', 'srcLinks', 'touched', 'thumb', 'useFull', 'barcode', 'aiAt', 'aiDeep', 'buyDate', 'buyWhere', 'buyNote', 'tags', 'tastings', 'grapes', 'abv', 'lot', 'disg', 'dosage'];
 async function syncGroup(nb) {
   for (const x of siblings(nb)) {
     const y = { ...x };
@@ -883,6 +885,7 @@ async function openBottle(id, pre) {
   <div class="fr"><label for="f_size">Formato</label><select id="f_size">${sizeOpts}</select></div>
   <div class="fr" id="f_sizeow" ${knownSize ? 'hidden' : ''}><label for="f_sizeo">Centilitri</label><input id="f_sizeo" inputmode="decimal" placeholder="es. 25" value="${knownSize ? '' : esc(String(sizeMl(b) / 10).replace('.', ','))}"></div>
   <div class="fr"><label for="f_region">Zona</label><input id="f_region" placeholder="Denominazione" value="${esc(b.region)}"></div>
+  ${typeof zoneOpts === 'function' ? `<div class="fr"><label for="f_zone">Sulla mappa</label><select id="f_zone">${zoneOpts(b)}</select></div>` : ''}
   <div class="fr"><label for="f_grapes">Uvaggio</label><input id="f_grapes" placeholder="es. Nebbiolo 100%" value="${esc(b.grapes)}"></div>
   <div class="fr"><label for="f_abv">Gradazione %</label><input id="f_abv" inputmode="decimal" placeholder="es. 14" value="${esc(b.abv)}"></div>
   <div class="fr spk"><label for="f_disg">Sboccatura</label><input id="f_disg" placeholder="es. 03/2022" value="${esc(b.disg)}"></div>
@@ -1238,7 +1241,7 @@ async function openBottle(id, pre) {
     const p = g('pos'), [sh, r, c] = p ? p.split('|') : [null, 0, 0];
     const stv = stateOf();
     const nb = {
-      ...b, producer: g('producer'), cuvee: g('cuvee'), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
+      ...b, producer: g('producer'), cuvee: g('cuvee'), zone: $('#f_zone') ? $('#f_zone').value : (b.zone || ''), vintage: num(g('vintage')), type: g('type'), size: sizeOf(), region: g('region'), aiAt, aiDeep,
       price: num(g('price')), value: num(g('value')), valueAuto: autoVal && g('value') !== '',
       buyDate: g('bdate'), buyWhere: g('bwhere'), buyNote: g('bnote'), grapes: g('grapes'), abv: num(g('abv')), lot: g('lot'), disg: g('disg'), dosage: g('dosage'),
       tastings: tastings.slice(),
