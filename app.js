@@ -95,7 +95,7 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '51';
+const APP_VERSION = '52';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
@@ -321,7 +321,16 @@ Poi da 1 a 3 righe, ognuna che inizia con "• " e riguarda UNA recensione recen
 Regole: riporta solo ciò che trovi davvero nelle fonti, niente punteggi inventati o a memoria. Se per questa annata non trovi nulla, scrivilo chiaramente. Se usi un'altra annata, dillo. Se una fonte non è raggiungibile (Instagram e Vivino spesso lo sono poco), dillo invece di supporre. Non usare Markdown.`;
 }
 
-const infoRules = (ml) => `Scrivi in italiano. Non inventare: niente punteggi, premi, date o dati che non conosci con buona certezza; usa stringa vuota o null per ciò che non sai. Se non conosci questo vino in particolare, scrivi informazioni generali su tipo, zona e uve e inizia quel testo con "Indicazione generica:".
+// Zona: breve e precisa, utile anche per la mappa
+const REGION_RULE = '"region": denominazione e, se lo sai con certezza, il comune del produttore o del vigneto, in forma breve, per esempio "Champagne, Côte des Blancs (Avize)", "Côtes du Jura, Rotalier" o "Barolo, Monforte d\'Alba". Massimo 60 caratteri, niente fonti, note o spiegazioni.';
+function cleanRegion(s) {
+  s = String(s || '').replace(/<[^>]+>/g, '').replace(/\s*\([^()]*(fonte|secondo|vivino|wine-?searcher|https?:|www\.|\.com|\.it\b|;|indica)[^()]*\)/gi, '').split(/;|\.\s/)[0].replace(/\s+/g, ' ').trim().replace(/[,.]$/, '');
+  const op = s.lastIndexOf('('); if (op > 0 && s.indexOf(')', op) < 0) s = s.slice(0, op).trim().replace(/[,.]$/, '');
+  if (/^(dato non reperito|non indicat[ao]|sconosciut[ao])$/i.test(s)) return '';
+  return s.length > 70 ? s.slice(0, 70).replace(/[\s,(]+[^\s,(]*$/, '') : s;
+}
+const infoRules = (ml) => `${REGION_RULE}
+Scrivi in italiano. Non inventare: niente punteggi, premi, date o dati che non conosci con buona certezza; usa stringa vuota o null per ciò che non sai. Se non conosci questo vino in particolare, scrivi informazioni generali su tipo, zona e uve e inizia quel testo con "Indicazione generica:".
 Campi informativi:
 "producer_info": 2-3 frasi sul produttore (dove si trova, filosofia, stile);
 "wine_info": 3-4 frasi sulla cuvée (vinificazione, affinamento, profilo di degustazione);
@@ -345,7 +354,7 @@ ${infoRules(750)}`;
 function deepPrompt(b) {
   return `Cerca sul web informazioni precise e verificabili su questo vino: produttore ${b.producer || 'non indicato'}, cuvée ${b.cuvee || 'non indicata'}, annata ${b.vintage || 'non indicata'}${b.region ? ', zona ' + b.region : ''}${b.disg ? ', sboccatura ' + b.disg : ''}${b.dosage ? ', dosaggio ' + b.dosage : ''}, formato ${sizeName(b.size || 750)}. Siamo nel ${new Date().getFullYear()}.
 Consulta il sito del produttore, guide e riviste, Wine-Searcher, Vivino, CellarTracker, enoteche e case d'asta.
-Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi:
+Rispondi SOLO con un oggetto JSON, senza altro testo, con questi campi (${REGION_RULE}):
 {"type":"rosso"|"bianco"|"bollicine"|"rosato"|"altro"|null,"region":string|null,"grapes":string|null,"abv":number|null,"dosage":string|null,"producer_info":string,"wine_info":string,"vintage_info":string,"drink_text":string,"drink_from":number|null,"drink_to":number|null,"pairing":string,"price_eur":number|null,"price_note":string}
 - grapes: uvaggio con percentuali (es. "Sangiovese 100%"), dalla scheda tecnica del produttore se la trovi; dosage solo per spumanti (es. "Extra Brut 3 g/l"); abv gradazione in %.
 - producer_info: chi è e dove si trova, filosofia e stile, 2-3 frasi.
@@ -958,7 +967,7 @@ async function openBottle(id, pre) {
     const w = $('#whole');
     w.hidden = !(photo && photoFull);
     w.textContent = useFull ? 'Usa il ritaglio' : 'Usa la foto intera';
-    $('#photoctl').hidden = !!bl;
+    $('#photoctl').hidden = !!bl || !!id;   // bottiglie già salvate: il pannello si apre con «Foto»
     $('#photoact').hidden = !bl;
   };
   const setPhoto = async (file, box, lbox, code, poor) => {
@@ -1002,7 +1011,7 @@ async function openBottle(id, pre) {
   function showSparkling() { const on = $('#f_type').value === 'bollicine' || !!(g('disg') || g('dosage')); document.querySelectorAll('#dlg .spk').forEach((x) => { x.hidden = !on; }); }
   const applyInfo = (j) => {
     const put = (f, v) => { if (v && typeof v === 'string' && !touched.has(f)) $('#f_' + f).value = v; };
-    if (j.region && typeof j.region === 'string' && !$('#f_region').value.trim()) $('#f_region').value = j.region;
+    if (j.region && typeof j.region === 'string' && !$('#f_region').value.trim()) $('#f_region').value = cleanRegion(j.region);
     if (!typeTouched && ['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
     put('info', j.producer_info); put('winfo', j.wine_info); put('prod', j.production); put('vinfo', j.vintage_info); put('pairing', j.pairing);
     const empty = (f, v) => { const el = $('#f_' + f); if (el && v != null && String(v).trim() && !el.value.trim()) el.value = String(v).trim(); };
@@ -1155,7 +1164,7 @@ async function openBottle(id, pre) {
       const j = await aiJson(scanPrompt(), await toB64(file, 1600));
       aiWaitNote = null;
       const set = (k, v) => { if (v !== null && v !== undefined && v !== '') $('#f_' + k).value = v; };
-      set('producer', j.producer); set('cuvee', j.cuvee); set('vintage', j.vintage); set('region', j.region);
+      set('producer', j.producer); set('cuvee', j.cuvee); set('vintage', j.vintage); set('region', cleanRegion(j.region));
       if (j.size_ml) setSize(j.size_ml);
       if (['rosso', 'bianco', 'bollicine', 'rosato', 'altro'].includes(j.type)) $('#f_type').value = j.type;
       if (j.barcode && /^\d{8,14}$/.test(String(j.barcode))) b.barcode = String(j.barcode);
@@ -1376,7 +1385,7 @@ async function enrichRecord(b0, noWeb) {
   const t = new Set(b.touched || []);
   const put = (k, f) => { if (typeof j[f] === 'string' && j[f].trim() && !t.has(k)) b[k] = j[f].trim(); };
   put('info', 'producer_info'); put('winfo', 'wine_info'); put('prod', 'production'); put('vinfo', 'vintage_info'); put('pairing', 'pairing');
-  if (j.region && !b.region) b.region = j.region;
+  if (j.region && !b.region) b.region = cleanRegion(j.region);
   if (!b.grapes && typeof j.grapes === 'string' && j.grapes.trim()) b.grapes = j.grapes.trim();
   if (!b.abv && Number(j.abv) > 0) b.abv = Number(j.abv);
   if (!b.dosage && typeof j.dosage === 'string' && j.dosage.trim()) b.dosage = j.dosage.trim();
