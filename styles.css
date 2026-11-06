@@ -649,3 +649,8 @@ body:has(.floatbar) .fab{display:none}
 :root[data-theme="light"] .zlab span{background:rgba(255,250,240,.55)}
 :root[data-theme="light"] .cell.mv .dot,:root[data-theme="light"] .cell.hot .dot{outline-color:var(--wine)}
 :root[data-theme="light"] .mback.over{box-shadow:0 2px 8px rgba(90,60,30,.2)}
+/* v53: etichette sugli scaffali nel tema chiaro (la foto copre tutto il cerchio) */
+:root[data-theme="light"] .dot.has{background-size:cover;background-position:center;background-repeat:no-repeat}
+/* niente riquadro di selezione sui pulsanti toccati col dito */
+button:focus,.btn:focus,a:focus,summary:focus{outline:none}
+@media (hover:hover) and (pointer:fine){button:focus-visible,.btn:focus-visible,a:focus-visible{outline:2px solid var(--gold);outline-offset:2px}}
