@@ -95,10 +95,18 @@ async function removeBottle(id) {
 }
 
 /* ===== Impostazioni e IA ===== */
-const APP_VERSION = '48';
+const APP_VERSION = '49';
 window.addEventListener('unhandledrejection', (e) => { try { const m = (e.reason && e.reason.message) || String(e.reason || ''); if (!m) return; const sc = document.getElementById('scs'); if (sc && document.getElementById('dlg').open) sc.textContent = 'Qualcosa non è andato: ' + m; else if (typeof msg === 'function') msg('Qualcosa non è andato: ' + esc(m)); } catch (_) {} });
 const CFG_KEY = 'cantina.cfg';
 const DEF = { provider: 'gemini', geminiKey: '', geminiModel: 'gemini-3.1-flash-lite', anthropicKey: '', anthropicModel: 'claude-haiku-5-5', autoDeep: false };
+const THEME_KEY = 'cantina.theme';
+function themeNow() { try { return localStorage.getItem(THEME_KEY) === 'light' ? 'light' : 'dark'; } catch (_) { return 'dark'; } }
+function applyTheme(t) {
+  document.documentElement.dataset.theme = t;
+  const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = t === 'light' ? '#F6F1EA' : '#121010';
+  const cs = document.querySelector('meta[name="color-scheme"]'); if (cs) cs.content = t;
+}
+applyTheme(themeNow());
 function getCfg() { try { return { ...DEF, ...JSON.parse(localStorage.getItem(CFG_KEY) || '{}') }; } catch (_) { return { ...DEF }; } }
 function setCfg(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch (_) {} }
 function errorHint(msg) {
@@ -457,8 +465,11 @@ function status(b) {
   return y < a ? 'st-wait' : y > z ? 'st-past' : 'st-now';
 }
 
+let lastTab = null;
 function render() {
   if (typeof killMap === 'function') killMap();
+  const keepY = lastTab === tab ? window.scrollY : 0, sameTab = lastTab === tab;
+  lastTab = tab;
   const all = Object.values(S.bottles);
   const bs = all.filter((b) => inCellar(b));
   const spent = bs.reduce((a, b) => a + (b.price || 0), 0);
@@ -484,7 +495,11 @@ function render() {
   const navT = tab === 'stats' ? 'cantina' : tab;
   document.querySelectorAll('nav [data-t]').forEach((b) => b.setAttribute('aria-pressed', b.dataset.t === navT));
   const pages = { cantina, lista: () => lista(all), stasera, mappa, luna, stats, calici: caliciPage };
-  $('#app').innerHTML = (pages[tab] || cantina)();
+  const app = $('#app');
+  if (sameTab) app.style.minHeight = app.offsetHeight + 'px';   // niente salto mentre il contenuto viene ridisegnato
+  app.innerHTML = (pages[tab] || cantina)();
+  if (sameTab) { window.scrollTo(0, keepY); requestAnimationFrame(() => { app.style.minHeight = ''; window.scrollTo(0, keepY); }); }
+  else window.scrollTo(0, 0);
   if (tab === 'mappa') setTimeout(initMap, 0);
 }
 
@@ -578,8 +593,8 @@ function cantina() {
   if (!S.shelves.length) h = `<p class="empty">Nessuno scaffale. Crea il primo, poi tocca un posto libero per inserire una bottiglia.</p>`;
   const loose = Object.values(S.bottles).filter((b) => !b.shelf && inCellar(b)).length;
   placeQ = placeQ.filter((id) => S.bottles[id] && inCellar(S.bottles[id]) && !S.bottles[id].shelf);
-  const pq = placeQ.length ? `<div class="note place"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
-  const mvb = moving && S.bottles[moving] ? `<div class="note"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
+  const pq = placeQ.length ? `<div class="note place floatbar"><b>Posiziona ${placeQ.length === 1 ? 'l\'ultima bottiglia' : 'le ' + placeQ.length + ' bottiglie'}: ${esc(name(S.bottles[placeQ[0]]))}</b><br>Tocca i posti liberi uno dopo l'altro.<div class="acts"><button class="btn" data-a="placeStop">Le posiziono dopo</button></div></div>` : '';
+  const mvb = moving && S.bottles[moving] ? `<div class="note floatbar"><b>Sposta: ${esc(name(S.bottles[moving]))}</b><br>Tocca il nuovo posto. Se è occupato, le due bottiglie si scambiano.<div class="acts"><button class="btn" data-a="unplace">Togli dallo scaffale</button><button class="btn" data-a="cancelMove">Annulla</button></div></div>` : '';
   const v3btn = '';
   return pq + mvb + (typeof cloudBanner === 'function' ? cloudBanner() : '') + keyBanner() + h + '<div class="legend"><span><i class="lg st-now"></i>Pronta da bere</span><span><i class="lg st-wait"></i>Da aspettare</span><span><i class="lg st-past"></i>Oltre il picco</span></div>' + (loose ? `<p class="info">${loose} bottiglie da posizionare: tocca un posto libero per sceglierle.</p>` : '') + `<button class="btn" data-a="newShelf">Nuovo scaffale</button>`;
 }
@@ -1463,6 +1478,9 @@ function openSettings() {
   const c = getCfg();
   const d = $('#dlg2');
   d.innerHTML = `<h2>Impostazioni</h2>
+  <h3 style="margin:8px 0 4px;font-size:16px">Aspetto</h3>
+  <div class="seg" role="group" aria-label="Tema"><button class="btn${themeNow() === 'dark' ? ' pri' : ''}" data-a="theme" data-v="dark">Scuro</button><button class="btn${themeNow() === 'light' ? ' pri' : ''}" data-a="theme" data-v="light">Chiaro (prova)</button></div>
+  <p class="info">Il tema chiaro è in prova: puoi tornare allo scuro quando vuoi da qui.</p>
   <h3 style="margin:8px 0 4px;font-size:16px">Lettura etichette e informazioni automatiche</h3>
   <p class="badge" id="c_state"></p>
   <p class="info">Serve una chiave di un servizio di IA. La chiave resta solo su questo telefono. Senza chiave l'app funziona uguale, ma compili tu i campi.</p>
@@ -1627,9 +1645,10 @@ document.addEventListener('click', (e) => {
   const t = e.target.closest('[data-a]');
   if (!t) return;
   const a = t.dataset.a;
-  if (a === 'tab') { tab = t.dataset.t; if (tab === 'luna') { calMode = 'month'; syncCal(); } render(); }
+  if (a === 'tab') { const again = tab === t.dataset.t && t.closest('nav'); tab = t.dataset.t; if (tab === 'luna') { calMode = 'month'; syncCal(); } render(); if (again) window.scrollTo({ top: 0, behavior: 'smooth' }); }
   else if (a === 'new') openBottle(null, tab === 'lista' && flt.view === 'wish' ? { wish: true } : tab === 'lista' && flt.view === 'pend' ? { pending: true } : {});
   else if (a === 'newShelf') openShelf(null);
+  else if (a === 'theme') { try { localStorage.setItem(THEME_KEY, t.dataset.v); } catch (_) {} applyTheme(t.dataset.v); t.parentNode.querySelectorAll('button').forEach((x) => x.classList.toggle('pri', x === t)); }
   else if (a === 'settings') openSettings();
   else if (a === 'appupdate') forceUpdate();
   else if (a === 'fchip') { const k = t.dataset.k; flt[k] = flt[k] === t.dataset.v ? '' : t.dataset.v; render(); }
@@ -1667,7 +1686,6 @@ document.addEventListener('click', (e) => {
   else if (a === 'asksend') { const ta = $('#ask'); askSend(ta ? ta.value : ''); }
   else if (a === 'askex') askSend(t.dataset.q);
   else if (a === 'askclear') { askLog = []; render(); }
-  else if (a === 'mreg') pickRegion(+t.dataset.i, true);
   else if (a === 'cancelMove') { moving = null; render(); }
   else if (a === 'placeStop') { placeQ = []; render(); }
   else if (a === 'unplace') { const m = S.bottles[moving]; moving = null; if (m) { const snap = snapIds([m.id]); persistBottle({ ...m, shelf: null, r: 0, c: 0 }); showUndo('Tolta dallo scaffale', snap); } else render(); }
@@ -1689,7 +1707,7 @@ document.addEventListener('click', (e) => {
       return;
     }
     if (!b) { openPlace(sh, r, c); return; }
-    notice(name(b) + (b.vintage ? ' ' + b.vintage : ''), 'Cosa vuoi fare?', [{ t: 'Apri scheda', pri: true, fn: () => openBottle(b.id) }, { t: 'Sposta', fn: () => { moving = b.id; tab = 'cantina'; render(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }, { t: 'Chiudi' }]);
+    notice(name(b) + (b.vintage ? ' ' + b.vintage : ''), 'Cosa vuoi fare?', [{ t: 'Apri scheda', pri: true, fn: () => openBottle(b.id) }, { t: 'Sposta', fn: () => { moving = b.id; render(); } }, { t: 'Chiudi' }]);
   }
 });
 document.addEventListener('change', (e) => {
