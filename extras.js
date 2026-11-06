@@ -379,7 +379,7 @@ function stats() {
   const group = (arr, key) => { const m = new Map(); arr.forEach((b) => { const k = key(b); if (k == null || k === '') return; m.set(k, (m.get(k) || 0) + 1); }); return [...m.entries()]; };
   const TCOL = { rosso: 'var(--rosso)', bianco: 'var(--bianco)', bollicine: 'var(--bollicine)', rosato: 'var(--rosato)', altro: 'var(--altro)' };
   const byType = group(inC, (b) => b.type).sort((a, b) => b[1] - a[1]).map(([l, v]) => ({ l, v, c: TCOL[l] }));
-  const zones = group(inC, (b) => { const i = matchRegion(b.region); return i >= 0 ? REGIONS[i].n : (b.region || null); }).sort((a, b) => b[1] - a[1]);
+  const zones = group(inC, (b) => { const i = zoneIdx(b); return i >= 0 ? REGIONS[i].n : (b.region || null); }).sort((a, b) => b[1] - a[1]);
   const topZ = zones.slice(0, 8).map(([l, v]) => ({ l, v }));
   if (zones.length > 8) topZ.push({ l: 'Altre zone', v: zones.slice(8).reduce((t, z) => t + z[1], 0) });
   const dec = group(inC, (b) => (b.vintage ? Math.floor(b.vintage / 10) * 10 : null)).sort((a, b) => a[0] - b[0]).map(([l, v]) => ({ l: "Anni '" + String(l).slice(2), v, s: String(l) + '–' + (l + 9) }));
